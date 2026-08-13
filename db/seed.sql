@@ -183,7 +183,7 @@ insert into public.items (kind, category, fr, arabizi, ar, note, cloze_index, is
   ('sentence', 'Voyage', 'Arrête-toi ici s''il te plaît.', 'weqef hna men fadlek', 'وقف هنا من فضلك', 'weqef = impératif, arrête-toi', 0, true, false),
   ('sentence', 'Voyage', 'Où sont les toilettes ?', 'win rahom twalet ?', 'وين راهم التواليت', 'win = où', 0, true, false),
   ('sentence', 'Voyage', 'Je cherche une pharmacie.', 'rani nqelleb 3la saydaliya', 'راني نقلب على صيدلية', 'nqelleb 3la = je cherche', 2, true, false),
-  ('sentence', 'Voyage', 'Je suis perdu, aide-moi.', 'rani twedert, 3awenni', 'راني توضرت، عاوني', '3awenni = aide-moi', 3, true, false),
+  ('sentence', 'Voyage', 'Je suis perdu, aide-moi.', 'rani twedert, 3awenni', 'راني توضرت، عاوني', '3awenni = aide-moi', 2, true, false),
   ('sentence', 'Voyage', 'Est-ce que tu parles français ?', 'tehder ferancawiya ?', 'تهدر فرنساوية', 'te- = préfixe de ''tu''', 0, true, false),
   ('sentence', 'Voyage', 'Je viens de France.', 'rani men fransa', 'راني من فرنسا', '', 2, true, false),
   ('sentence', 'Voyage', 'C''est loin d''ici ?', 'b3id men hna ?', 'بعيد من هنا', 'b3id = loin', 0, true, false),

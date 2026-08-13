@@ -7,12 +7,18 @@
 -- ------------------------------------------------------------
 --  UTILITAIRE : mise à jour automatique de updated_at
 -- ------------------------------------------------------------
+-- search_path figé : empêche le détournement via un schéma malveillant
 create or replace function public.touch_updated_at() returns trigger
-language plpgsql as $$
+language plpgsql
+set search_path = ''
+as $$
 begin
   new.updated_at = now();
   return new;
 end; $$;
+
+-- seul le trigger doit l'appeler, pas l'API REST
+revoke execute on function public.touch_updated_at() from public, anon, authenticated;
 
 -- ------------------------------------------------------------
 --  PROFILS
@@ -47,6 +53,9 @@ begin
   return new;
 end; $$;
 
+-- SECURITY DEFINER + exposée via /rest/v1/rpc : on révoque, seul le trigger l'invoque
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
@@ -79,7 +88,13 @@ create table if not exists public.items (
     check (kind <> 'sentence' or cloze_index is not null),
   -- une carte révisable doit avoir une traduction
   constraint ready_needs_translation
-    check (status <> 'ready' or length(arabizi) > 0)
+    check (status <> 'ready' or length(arabizi) > 0),
+  -- l'index de masquage doit désigner un mot qui existe réellement
+  constraint cloze_index_in_range check (
+    kind <> 'sentence'
+    or status <> 'ready'
+    or (cloze_index >= 0 and cloze_index < array_length(string_to_array(arabizi, ' '), 1))
+  )
 );
 
 create unique index if not exists items_fr_unique on public.items (kind, lower(fr));

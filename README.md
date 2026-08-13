@@ -6,18 +6,20 @@ App d'apprentissage de l'arabe algérien (derja). Contenu partagé, progression 
 
 | Brique | État |
 |---|---|
-| Schéma de base de données | ✅ écrit et testé (14/14) |
-| Contenu initial — 136 mots, 46 phrases, 18 verbes | ✅ prêt à importer |
-| App connectée (auth + sync) | 🚧 en cours |
-| PWA (installation sur mobile) | ⬜ à faire |
-| Scripts du flux de traduction | ⬜ à faire |
+| Schéma de base de données | ✅ appliqué en prod, 15/15 tests, 0 alerte de sécurité |
+| Contenu — 136 mots, 46 phrases, 18 verbes | ✅ importé |
+| Isolation entre utilisateurs | ✅ vérifiée avec deux comptes de test |
+| App connectée (auth + sync local-first) | ✅ construite |
+| PWA (installation sur mobile) | ✅ manifest + service worker + icônes |
+| Déploiement Netlify | ⬜ à faire — voir §3 |
+| Configuration de l'authentification | ⬜ à faire — voir §2 |
 
 ## Architecture
 
-- **Front** — HTML/CSS/JS sans framework, PWA installable
-- **Hébergement** — Netlify
-- **Base + Auth** — Supabase (Postgres, région Europe)
-- **Sync** — local-first : écriture locale immédiate, envoi au serveur en arrière-plan
+- **Front** — HTML/CSS/JS sans framework ni build, PWA installable (~128 Ko)
+- **Hébergement** — Netlify, dossier `public/`
+- **Base + Auth** — Supabase, projet `ypsnpwcznhcvfljuibnn` (eu-west-1)
+- **Sync** — local-first : écriture locale immédiate, envoi groupé toutes les 8 s
 
 ### Modèle de données
 
@@ -29,72 +31,85 @@ progress     scores, une ligne par item et par personne (privé)
 activity     réponses par jour (privé)
 ```
 
-Une phrase est un mot avec en plus `cloze_index`, d'où la table commune. Un verbe est une matrice de 16 formes, d'où sa table dédiée avec `forms` en `jsonb` et une contrainte qui refuse un verbe mal formé.
+Une phrase est un mot avec en plus `cloze_index`, d'où la table commune. Un verbe est une matrice de 16 formes, d'où sa table dédiée avec `forms` en `jsonb`.
 
-L'isolation entre utilisateurs est assurée par **Row Level Security**, donc par Postgres lui-même — pas par le code du navigateur.
+L'isolation entre utilisateurs est assurée par **Row Level Security**, donc par Postgres lui-même — pas par le code du navigateur. La clé `anon` présente dans `public/app.js` est conçue pour être publique : sans compte, elle ne donne accès à rien.
+
+### Ce que la base refuse
+
+Les contraintes ne sont pas décoratives — elles empêchent des bugs de rendu de remonter jusqu'à l'écran :
+
+- une carte marquée révisable **sans traduction** → une flashcard sans réponse
+- une phrase **sans** `cloze_index`, ou dont l'index désigne un mot inexistant → un trou dans le vide
+- un verbe révisable avec **autre chose que 8+8 formes** → un tableau de conjugaison troué
+- un doublon de français au sein d'un même `kind`
+
+### Modes de fonctionnement
+
+| | Connecté | Hors ligne |
+|---|---|---|
+| Contenu | depuis la base, à jour | contenu initial embarqué |
+| Progression | synchronisée entre appareils | locale à cet appareil |
+| Ajout de cartes | partagé avec les autres | local uniquement |
+| Sans réseau | file d'attente, envoi au retour | fonctionne normalement |
 
 ---
 
 ## Mise en route
 
-### 1. Créer la base
+### 1. Base de données — ✅ fait
 
-Dans le dashboard Supabase → **SQL Editor** :
+`db/schema.sql` puis `db/seed.sql` sont appliqués. Les deux sont rejouables sans créer de doublon et restent la référence en cas de reconstruction.
 
-1. Coller le contenu de `db/schema.sql`, *Run*.
-   La requête finale doit afficher `rowsecurity = true` sur les 5 tables. Si ce n'est pas le cas, **arrête-toi** : la clé anon donnerait alors accès à tout.
-2. Coller le contenu de `db/seed.sql`, *Run*.
-   La requête finale doit afficher 136 mots, 46 phrases, 18 verbes.
-
-Les deux scripts sont rejouables sans créer de doublon.
-
-### 2. Configurer l'authentification
-
-**Authentication → Sign In / Providers**
-
-- Activer **Email**, en mode *Magic Link* (aucun mot de passe à retenir)
-- **Désactiver les inscriptions publiques** (`Allow new users to sign up` → off)
-
-**Authentication → Users → Invite user** : une invitation par email pour chaque proche. C'est ce qui garde l'app fermée à ton cercle.
-
-### 3. Vérifier le schéma en local (optionnel)
-
-Fait tourner le schéma et le contenu sur un vrai Postgres embarqué, sans rien installer :
+Pour revalider le schéma en local, sur un vrai Postgres embarqué, sans rien installer :
 
 ```bash
 cd db && npm install && npm test
 ```
 
-14 assertions : contraintes d'intégrité, idempotence, transition `pending` → `ready`.
+15 assertions : contraintes d'intégrité, idempotence, transition `pending` → `ready`.
 
-### 4. Déployer
+### 2. Authentification — à faire
 
-À venir — Netlify, glisser-déposer du dossier `public/`.
+Dans le dashboard Supabase :
+
+- **Authentication → Sign In / Providers** : activer **Email** en mode *Magic Link*, puis **désactiver les inscriptions publiques** (`Allow new users to sign up` → off). Tant que c'est ouvert, n'importe qui peut se créer un compte et lire le deck.
+- **Authentication → URL Configuration** : ajouter l'URL Netlify dans *Site URL* et *Redirect URLs*, sinon le lien de connexion renverra vers `localhost`.
+- **Authentication → Users → Invite user** : une invitation par email pour chaque proche.
+
+### 3. Déploiement Netlify — à faire
+
+Le plus simple, via l'interface :
+
+1. netlify.com → *Add new site* → *Import an existing project* → GitHub → `yatoomix/Darijapp`
+2. Netlify lit `netlify.toml` : rien à configurer, le dossier publié est `public/`
+3. Chaque `git push` redéploie automatiquement
+
+Ou en glisser-déposer, sans git : déposer le dossier `public/` sur netlify.com/drop.
+
+Puis retourner au §2 renseigner l'URL obtenue dans la configuration Supabase.
+
+### 4. Installer sur téléphone
+
+Ouvrir l'URL dans **Safari** (iOS) ou Chrome (Android) → *Partager* → *Sur l'écran d'accueil*. L'app s'ouvre alors en plein écran et fonctionne sans réseau.
 
 ---
 
 ## Le flux « cherche-moi la traduction »
 
-Dans l'app, tu peux créer une carte avec **seulement le français**, en cochant une case. Elle part en base avec `status = 'pending'` : visible dans le Lexique, exclue des révisions tant qu'elle n'a pas de traduction — la base l'impose via la contrainte `ready_needs_translation`.
+Dans le Lexique, tu peux créer une carte avec **seulement le français**, en cochant la case. Elle part en base avec `status = 'pending'` : visible avec un badge, comptée dans le bandeau d'alerte, mais **exclue des révisions** — la base l'impose via `ready_needs_translation`.
 
-Ensuite, en session Cowork :
+Ensuite, en session Cowork, il suffit de demander « complète mes cartes en attente ». Le connecteur Supabase permet de lire les lignes `pending` et de les remplir directement, sans script ni clé `service_role`.
 
-```bash
-node scripts/pending.mjs      # exporte les cartes en attente vers pending.json
-# → Claude remplit les traductions dans filled.json
-node scripts/fill.mjs         # réinjecte, les cartes passent en 'ready'
-```
-
-Les scripts tournent **sur ta machine** : `supabase.co` n'est pas joignable depuis le sandbox de Claude.
-
-Le champ `verified` est distinct de `ready`. Les traductions générées arrivent utilisables mais non validées — la derja n'a pas d'orthographe standard et varie d'Alger à Constantine. L'app te donne la liste à faire vérifier par un proche.
+Le champ `verified` est distinct de `ready`. Les traductions générées arrivent utilisables mais non validées — la derja n'a pas d'orthographe standard et varie d'Alger à Constantine. Fais-les confirmer par un proche avant de les mémoriser : une forme fausse est plus coûteuse à désapprendre qu'à apprendre.
 
 ---
 
 ## Sécurité
 
-- La clé `anon` est **conçue pour être publique**. Elle est sans danger tant que le RLS est actif, ce que vérifie la dernière requête de `schema.sql`.
-- La clé `service_role` ne doit **jamais** apparaître dans le front ni dans un commit. Elle ne sert qu'aux scripts, depuis un `.env` local ignoré par git.
+- La clé `anon` est **publique par conception** et sans danger tant que le RLS est actif. Vérifié : sans compte, elle ne renvoie aucune ligne.
+- La clé `service_role` ne doit **jamais** apparaître dans le front ni dans un commit. Elle n'est utilisée nulle part dans ce projet.
+- Les fonctions `handle_new_user` et `touch_updated_at` sont en `SECURITY DEFINER` avec `search_path` figé, et leur droit d'exécution est révoqué pour `anon` et `authenticated` — sans quoi Supabase les exposerait via `/rest/v1/rpc`.
 - Données personnelles collectées : les adresses email, rien d'autre.
 
 ## Structure
@@ -103,8 +118,14 @@ Le champ `verified` est distinct de `ready`. Les traductions générées arriven
 db/
   schema.sql         DDL + RLS + contraintes + triggers
   seed.sql           contenu initial (is_seed = true)
-  test.mjs           14 assertions sur Postgres embarqué (pglite)
+  test.mjs           15 assertions sur Postgres embarqué (pglite)
   test-prelude.sql   stubs des objets Supabase pour les tests hors ligne
-public/              l'app (à venir)
-scripts/             flux de traduction (à venir)
+public/
+  index.html         markup + styles
+  app.js             logique, auth, synchronisation
+  seed-data.js       contenu de repli hors ligne (généré)
+  sw.js              service worker
+  manifest.webmanifest
+  icons/
+netlify.toml         publication, redirections SPA, en-têtes de sécurité
 ```

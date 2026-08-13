@@ -1,15 +1,14 @@
-# secrets — ne JAMAIS versionner
+# secrets
 .env
 .env.local
 *.key
 
-# flux de traduction (contenu de travail)
-pending.json
-filled.json
-
 # dépendances
 node_modules/
 db/node_modules/
+
+# outillage local
+.claude/settings.local.json
 
 # système
 .DS_Store

@@ -25,6 +25,8 @@ await expectFail('verbe ready avec 7 formes',
    '{"present":["a","b","c","d","e","f","g"],"past":["a","b","c","d","e","f","g","h"]}'::jsonb)`);
 await expectFail('verbe ready sans forms',
   `insert into verbs (fr,base) values ('sans formes','sf')`);
+await expectFail('phrase dont le mot masqué n\'existe pas',
+  `insert into items (kind,category,fr,arabizi,cloze_index) values ('sentence','Test','trop loin','deux mots',7)`);
 await expectFail('progress avec item_type inconnu',
   `insert into progress (user_id,item_type,item_id) values (gen_random_uuid(),'chanson',gen_random_uuid())`);
 await expectFail('doublon de mot',

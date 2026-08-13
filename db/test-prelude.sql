@@ -8,4 +8,6 @@ create table if not exists auth.users(
 create or replace function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;
 do $$ begin
   if not exists (select from pg_roles where rolname='authenticated') then create role authenticated; end if;
+  if not exists (select from pg_roles where rolname='anon') then create role anon; end if;
+  if not exists (select from pg_roles where rolname='service_role') then create role service_role; end if;
 end $$;
