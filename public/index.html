@@ -2,8 +2,8 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#faf8f5">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#f7f4ef">
 <title>Derja — arabe algérien</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/icon-180.png">
@@ -11,71 +11,151 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Derja">
 <style>
-
 :root{
   color-scheme: light;
-  --bg:#faf8f5; --card:#ffffff; --ink:#1c1a17; --muted:#6b6560;
-  --line:#e6e0d8; --accent:#0f7b6c; --accent-soft:#e6f2f0;
+  --bg:#f7f4ef; --card:#fff; --ink:#1c1a17; --muted:#6f6862;
+  --line:#e8e2d9; --accent:#0f7b6c; --accent2:#16a390; --accent-soft:#e6f2f0;
   --warn:#b45309; --warn-soft:#fdf3e3; --bad:#b42318; --bad-soft:#fdeceb;
+  --gold:#b7791f; --shadow:0 1px 2px rgba(28,26,23,.05), 0 6px 20px rgba(28,26,23,.06);
+  --r:16px;
 }
-*{box-sizing:border-box}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{overscroll-behavior-y:none}
 body{margin:0;background:var(--bg);color:var(--ink);
-  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;}
-.wrap{max-width:820px;margin:0 auto;padding:20px 18px 80px}
-h1{font-size:22px;margin:0 0 2px;letter-spacing:-.3px}
-h2{font-size:17px;margin:28px 0 10px;letter-spacing:-.2px}
-h3{font-size:14px;margin:20px 0 6px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
-.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
-nav{display:flex;gap:6px;flex-wrap:wrap;position:sticky;top:0;background:var(--bg);
-  padding:10px 0;z-index:10;border-bottom:1px solid var(--line);margin-bottom:14px}
-nav button{border:1px solid var(--line);background:var(--card);color:var(--ink);
-  padding:7px 13px;border-radius:999px;font-size:13px;cursor:pointer;font-weight:500}
-nav button:hover{border-color:#c9c0b4}
-nav button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-.panel{display:none} .panel.on{display:block}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
-.ar{font-size:30px;line-height:1.7;direction:rtl;font-family:"Geeza Pro","Noto Naskh Arabic","Times New Roman",serif}
-.arz{font-size:24px;font-weight:600;letter-spacing:-.2px}
+  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
+  padding-bottom:env(safe-area-inset-bottom)}
+h1{font-size:26px;margin:0;letter-spacing:-.6px}
+h2{font-size:17px;margin:0;letter-spacing:-.3px}
+h3{font-size:13px;margin:22px 0 8px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:600}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px 40px}
+.sub{color:var(--muted);font-size:13.5px;margin:2px 0 0}
 .tiny{font-size:12px;color:var(--muted)}
+.f{font-weight:600}
+.ar{font-size:28px;line-height:1.7;direction:rtl;font-family:"Geeza Pro","Noto Naskh Arabic",serif}
+.arz{font-size:23px;font-weight:600;letter-spacing:-.2px}
+
+/* ---------- en-tête ---------- */
+#hdr{position:sticky;top:0;z-index:30;background:rgba(247,244,239,.88);
+  backdrop-filter:saturate(1.6) blur(12px);border-bottom:1px solid var(--line);
+  padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;display:none;align-items:center;gap:12px}
+#hdr.show{display:flex}
+#back{border:none;background:none;font-size:22px;line-height:1;cursor:pointer;
+  padding:6px 8px;margin-left:-8px;border-radius:10px;color:var(--ink)}
+#back:active{background:var(--line)}
+#hright{margin-left:auto}
+
+/* ---------- vues et transitions ---------- */
+.view{display:none}
+.view.on{display:block}
+@media (prefers-reduced-motion:no-preference){
+  .view.on{animation:slideIn .26s cubic-bezier(.22,.7,.3,1)}
+  .view.on.back{animation:slideBack .26s cubic-bezier(.22,.7,.3,1)}
+}
+@keyframes slideIn{from{opacity:0;transform:translateX(22px)}to{opacity:1;transform:none}}
+@keyframes slideBack{from{opacity:0;transform:translateX(-22px)}to{opacity:1;transform:none}}
+
+/* ---------- accueil ---------- */
+.hometop{padding:calc(env(safe-area-inset-top) + 22px) 0 18px;display:flex;
+  justify-content:space-between;align-items:flex-start;gap:12px}
+.bento{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.tile{border:1px solid var(--line);background:var(--card);border-radius:var(--r);
+  padding:16px;cursor:pointer;box-shadow:var(--shadow);position:relative;overflow:hidden;
+  transition:transform .16s ease, box-shadow .16s ease;text-align:left;font:inherit;color:inherit;display:block;width:100%}
+.tile:active{transform:scale(.975)}
+.tile .ico{font-size:22px;line-height:1;margin-bottom:10px;display:block}
+.tile .t{font-weight:650;font-size:15.5px;letter-spacing:-.2px}
+.tile .d{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.4}
+.tile.wide{grid-column:span 2}
+.tile.tall{grid-row:span 2;display:flex;flex-direction:column;justify-content:space-between}
+
+/* la séance du jour */
+.hero{grid-column:span 2;background:linear-gradient(145deg,var(--accent) 0%,var(--accent2) 100%);
+  color:#fff;border:none;padding:20px;box-shadow:0 8px 28px rgba(15,123,108,.28)}
+.hero .t{font-size:20px;letter-spacing:-.4px}
+.hero .d{color:rgba(255,255,255,.82);font-size:13px}
+.hero .go{margin-top:16px;background:#fff;color:var(--accent);border-radius:11px;
+  padding:11px 18px;font-weight:650;font-size:14.5px;display:inline-block}
+.hero.done{background:linear-gradient(145deg,#3f6f56 0%,#5b8f6f 100%);box-shadow:0 8px 28px rgba(63,111,86,.25)}
+.flame{position:absolute;top:16px;right:18px;text-align:right}
+.flame b{font-size:24px;display:block;line-height:1}
+.flame span{font-size:11px;opacity:.8}
+
+.mini{height:5px;background:rgba(0,0,0,.07);border-radius:99px;overflow:hidden;margin-top:10px}
+.mini>i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .5s ease}
+.hero .mini{background:rgba(255,255,255,.25)} .hero .mini>i{background:#fff}
+
+.small{padding:13px}
+.small .ico{font-size:18px;margin-bottom:7px}
+.small .t{font-size:13.5px}
+
+/* ---------- cartes de contenu ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:17px;margin-bottom:12px;box-shadow:var(--shadow)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-button.act{border:1px solid var(--line);background:var(--card);padding:9px 15px;border-radius:10px;
-  cursor:pointer;font-size:14px;font-weight:500;color:var(--ink)}
-button.act:hover{background:#f4f1ec}
+button.act{border:1px solid var(--line);background:var(--card);padding:11px 16px;border-radius:12px;
+  cursor:pointer;font-size:14.5px;font-weight:550;color:var(--ink);transition:transform .12s}
+button.act:active{transform:scale(.96)}
 button.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
-button.pri:hover{background:#3a3530}
 button.good{background:var(--accent-soft);border-color:#b9ddd6;color:#0b5b50}
 button.bad{background:var(--bad-soft);border-color:#f3c9c5;color:var(--bad)}
-input[type=text]{border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:16px;
-  width:100%;background:#fff;color:var(--ink)}
-input[type=text]:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
-table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}
-th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line)}
-th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600}
-td.f{font-weight:600}
+input[type=text],input[type=email],select,textarea{border:1px solid var(--line);border-radius:12px;
+  padding:12px 13px;font-size:16px;width:100%;background:#fff;color:var(--ink);font-family:inherit}
+input:focus,select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+select{padding:10px 12px;font-size:14px}
+table{width:100%;border-collapse:collapse;font-size:14px;margin:6px 0}
+th,td{text-align:left;padding:8px 9px;border-bottom:1px solid var(--line)}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600}
 .pill{display:inline-block;background:var(--accent-soft);color:#0b5b50;border-radius:999px;
-  padding:2px 9px;font-size:12px;font-weight:600}
+  padding:2px 9px;font-size:11.5px;font-weight:600}
 .pill.g{background:#f1eee9;color:var(--muted)}
-select{border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px;background:#fff;color:var(--ink)}
-.fb{margin-top:10px;padding:10px 12px;border-radius:10px;font-size:14px}
+.pill.w{background:var(--warn-soft);color:var(--warn)}
+.fb{margin-top:10px;padding:11px 13px;border-radius:12px;font-size:14px}
 .fb.ok{background:var(--accent-soft);color:#0b5b50}
 .fb.no{background:var(--bad-soft);color:var(--bad)}
 .bar{height:5px;background:#eee8e0;border-radius:99px;overflow:hidden;margin:10px 0 2px}
-.bar>i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
-.hl{background:#fff3cd;border-radius:4px;padding:0 4px;font-weight:700}
-.note{background:var(--warn-soft);border-left:3px solid var(--warn);padding:10px 12px;
-  border-radius:0 8px 8px 0;font-size:13.5px;margin:10px 0}
+.bar>i{display:block;height:100%;background:var(--accent);width:0;transition:width .4s ease}
+.hl{background:#fff3cd;border-radius:5px;padding:0 5px;font-weight:700}
+.note{background:var(--warn-soft);border-left:3px solid var(--warn);padding:11px 13px;
+  border-radius:0 10px 10px 0;font-size:13.5px;margin:10px 0}
 ul{padding-left:20px;margin:8px 0} li{margin:4px 0}
-.spk{border:none;background:none;cursor:pointer;font-size:18px;padding:2px 6px;opacity:.55}
-.spk:hover{opacity:1}
+.spk{border:none;background:none;cursor:pointer;font-size:18px;padding:2px 6px;opacity:.5}
+.spk:active{opacity:1}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-@media(max-width:560px){.grid2{grid-template-columns:1fr}.ar{font-size:26px}}
 code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 
-/* ---- ajouts de la version connectée ---- */
-.topbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}
-.who{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px}
-.dot{width:7px;height:7px;border-radius:99px;background:#c9c0b4;flex:none}
-.dot.on{background:var(--accent)} .dot.off{background:var(--warn)}
+/* ---------- retours de réussite / échec ---------- */
+@media (prefers-reduced-motion:no-preference){
+  .shake{animation:shake .4s}
+  .pop{animation:pop .32s cubic-bezier(.2,1.5,.4,1)}
+}
+@keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}
+  30%,50%,70%{transform:translateX(-7px)}40%,60%{transform:translateX(7px)}}
+@keyframes pop{0%{transform:scale(.85);opacity:0}100%{transform:scale(1);opacity:1}}
+#burst{position:fixed;inset:0;pointer-events:none;z-index:60;display:flex;
+  align-items:center;justify-content:center;font-size:82px;opacity:0}
+@media (prefers-reduced-motion:no-preference){ #burst.go{animation:burst .62s ease-out} }
+@keyframes burst{0%{opacity:0;transform:scale(.5)}25%{opacity:1;transform:scale(1.08)}
+  60%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.15)}}
+
+/* ---------- séance du jour ---------- */
+#sesbar{position:sticky;top:0;z-index:20;background:var(--bg);padding:10px 0 12px}
+.sesq{text-align:center;padding:26px 16px}
+.sesq .lbl{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}
+.sesq .q{font-size:22px;font-weight:650;margin:14px 0 20px;letter-spacing:-.3px}
+.done{text-align:center;padding:34px 16px}
+.done .big{font-size:52px;line-height:1;margin-bottom:14px}
+.score{font-size:40px;font-weight:750;letter-spacing:-1.5px;margin:6px 0}
+
+/* ---------- comparaison ---------- */
+.rank{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.rank:last-child{border-bottom:none}
+.rank .pos{width:26px;font-weight:700;color:var(--muted);font-size:14px;flex:none}
+.rank.me{background:var(--accent-soft);margin:0 -12px;padding:12px;border-radius:12px;border-bottom:none}
+.rank .nm{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank .sc{text-align:right;font-size:13px;flex:none}
+.medal{font-size:16px}
+
+/* ---------- connexion ---------- */
 #gate{position:fixed;inset:0;background:var(--bg);z-index:100;display:none;
   align-items:center;justify-content:center;padding:24px;overflow:auto}
 #gate.show{display:flex}
@@ -83,137 +163,141 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 .spin{display:inline-block;width:12px;height:12px;border:2px solid var(--line);
   border-top-color:var(--accent);border-radius:99px;animation:sp .7s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
+.who{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:6px;justify-content:flex-end}
+.dot{width:7px;height:7px;border-radius:99px;background:#c9c0b4;flex:none}
+.dot.on{background:var(--accent)} .dot.off{background:var(--warn)}
+
+@media(min-width:620px){
+  .bento{grid-template-columns:repeat(3,1fr)}
+  .hero{grid-column:span 3}
+  .tile.wide{grid-column:span 3}
+  h1{font-size:30px}
+}
 </style>
 </head>
 <body>
 
-<div id="gate">
-  <div class="box">
-    <h1 style="margin-bottom:4px">Derja</h1>
-    <p class="sub">Arabe algérien — vocabulaire, conjugaison, phrases.</p>
-    <div class="card">
-      <h3 style="margin-top:0">Se connecter</h3>
-      <p class="tiny">Pas de mot de passe : tu reçois un lien par email. L'accès est sur invitation.</p>
-      <input type="email" id="gmail" placeholder="ton@email.com" autocomplete="email" inputmode="email">
-      <div class="row" style="margin-top:10px">
-        <button class="act pri" id="gsend">Recevoir le lien</button>
-      </div>
-      <div id="gfb"></div>
-    </div>
-    <div class="card">
-      <h3 style="margin-top:0">Sans compte</h3>
-      <p class="tiny">Tu peux réviser le contenu de base immédiatement. La progression reste sur cet appareil et ne se synchronise pas.</p>
-      <button class="act" id="glocal">Continuer hors ligne</button>
-    </div>
+<div id="burst"></div>
+
+<div id="gate"><div class="box">
+  <h1 style="margin-bottom:4px">Derja</h1>
+  <p class="sub" style="margin-bottom:18px">Arabe algérien — vocabulaire, conjugaison, phrases.</p>
+  <div class="card">
+    <h3 style="margin-top:0">Se connecter</h3>
+    <p class="tiny">Pas de mot de passe : tu reçois un lien par email. L'accès est sur invitation.</p>
+    <input type="email" id="gmail" placeholder="ton@email.com" autocomplete="email" inputmode="email">
+    <div class="row" style="margin-top:10px"><button class="act pri" id="gsend">Recevoir le lien</button></div>
+    <div id="gfb"></div>
   </div>
-</div>
+  <div class="card">
+    <h3 style="margin-top:0">Sans compte</h3>
+    <p class="tiny">Tu peux réviser le contenu de base immédiatement. La progression reste sur cet appareil.</p>
+    <button class="act" id="glocal">Continuer hors ligne</button>
+  </div>
+</div></div>
+
+<header id="hdr">
+  <button id="back" aria-label="Retour">←</button>
+  <h2 id="htitle"></h2>
+  <span id="hright"></span>
+</header>
 
 <div class="wrap">
-<div class="topbar">
+<div class="view" id="v-home">
+<div class="hometop">
   <div>
-    <h1>Derja — arabe algérien</h1>
-    <p class="sub" style="margin-bottom:0">Vocabulaire, conjugaison, phrases et prononciation.</p>
+    <h1>Derja</h1>
+    <p class="sub">Arabe algérien</p>
   </div>
-  <div class="who"><span class="dot" id="sdot"></span><span id="swho">…</span>
-    <button class="act" id="sout" style="padding:5px 10px;font-size:12px;display:none">Quitter</button></div>
-</div>
-
-<nav>
-  <button data-p="plan" class="on">Plan</button>
-  <button data-p="pron">Prononciation</button>
-  <button data-p="vocab">Vocabulaire</button>
-  <button data-p="lex">Lexique</button>
-  <button data-p="conj">Conjugaison</button>
-  <button data-p="phr">Phrases</button>
-  <button data-p="gram">Grammaire</button>
-  <button data-p="stats">Progression</button>
-</nav>
-
-<div class="panel on" id="p-plan">
-  <div class="card">
-    <h3 style="margin-top:0">Pourquoi Quizlet ne suffit pas</h3>
-    <p>Les flashcards mot-à-mot te donnent du <b>lexique</b>, c'est-à-dire environ un tiers du travail. Le reste — conjugaison, accords, ordre des mots, réflexes — s'acquiert autrement&nbsp;:</p>
-    <ul>
-      <li><b>Les chunks</b> : mémoriser des phrases entières plutôt que des mots. La grammaire s'installe implicitement, exactement comme un enfant.</li>
-      <li><b>Le drill de patterns</b> : conjuguer à voix haute les 8 personnes jusqu'à ce que ça sorte sans réfléchir. La derja est très régulière, donc c'est rentable.</li>
-      <li><b>L'input massif</b> : écouter beaucoup, même sans tout comprendre.</li>
-    </ul>
-  </div>
-
-  <div class="card">
-    <h3 style="margin-top:0">Ta séance type — 25 minutes</h3>
-    <table>
-      <tr><td class="f">5 min</td><td>Onglet <b>Vocabulaire</b> — flashcards, à voix haute</td></tr>
-      <tr><td class="f">7 min</td><td>Onglet <b>Conjugaison</b> — un verbe, les 8 personnes, à voix haute</td></tr>
-      <tr><td class="f">8 min</td><td>Onglet <b>Phrases</b> — texte à trous + répétition de la phrase complète</td></tr>
-      <tr><td class="f">5 min</td><td>Écoute libre (voir ci-dessous), sans chercher à tout comprendre</td></tr>
-    </table>
-    <div class="note"><b>Règle non négociable :</b> tout se dit à voix haute. Une phrase lue en silence n'entre pas dans la bouche. Comme tu n'as personne autour de toi, ta bouche est ton seul entraînement moteur.</div>
-  </div>
-
-  <div class="card">
-    <h3 style="margin-top:0">Comment t'exposer, sans entourage arabophone</h3>
-    <ul>
-      <li><b>Un tuteur algérien en ligne</b> (italki, Preply) — 1×/semaine, 30 min. C'est de loin le meilleur rapport effort/progrès quand on n'a personne. Cherche explicitement « Algerian Arabic / Darja », pas « Arabic ».</li>
-      <li><b>YouTube algérien</b> : vlogs du quotidien, chaînes de cuisine, sketchs. Le contenu banal est le plus utile — c'est la langue que tu veux parler.</li>
-      <li><b>Séries algériennes</b> pendant le Ramadan (beaucoup sont sur YouTube), avec sous-titres arabes si possible.</li>
-      <li><b>Musique</b> : raï et chaâbi. Prends une chanson, sors les paroles, traduis-la ligne par ligne. Une chanson bien travaillée vaut 50 flashcards.</li>
-      <li><b>Podcasts / lives</b> en fond sonore, même en tâche de fond — l'oreille s'habitue aux sons avant que le cerveau comprenne.</li>
-    </ul>
-    <div class="note"><b>Attention au piège :</b> la plupart des ressources « arabe » enseignent le <i>fusha</i> (arabe littéraire) ou le dialecte égyptien/marocain. Ce n'est pas ce que parle ta famille. Filtre systématiquement sur <b>algérien</b>.</div>
-  </div>
-
-  <div class="card">
-    <h3 style="margin-top:0">Sur 3 mois</h3>
-    <table>
-      <tr><td class="f">Mois 1</td><td>Sons + 150 mots + présent/passé des verbes réguliers. Objectif : te présenter et poser 5 questions.</td></tr>
-      <tr><td class="f">Mois 2</td><td>+150 mots + verbes irréguliers + négation. Objectif : tenir une conversation de 2 minutes.</td></tr>
-      <tr><td class="f">Mois 3</td><td>Chunks longs, raconter au passé, comprendre un dialogue simple à vitesse réelle.</td></tr>
-    </table>
-    <p class="tiny">L'écriture arabe n'est pas prioritaire pour toi, mais elle est affichée partout ici — à force de la voir, tu commenceras à reconnaître les mots sans effort.</p>
+  <div>
+    <div class="who"><span class="dot" id="sdot"></span><span id="swho">…</span></div>
+    <div style="text-align:right;margin-top:6px">
+      <button class="act" id="sout" style="padding:6px 11px;font-size:12px">Compte</button>
+    </div>
   </div>
 </div>
-<div class="panel" id="p-pron">
-  <div class="card">
-    <h3 style="margin-top:0">Les 6 sons qui n'existent pas en français</h3>
-    <p class="tiny">C'est 90&nbsp;% de l'accent. Travaille-les 2 minutes par jour et le reste suivra.</p>
-    <table>
-      <tr><th>Signe</th><th>Lettre</th><th>Comment le produire</th><th>Exemple</th></tr>
-      <tr><td class="f">3</td><td class="ar" style="font-size:22px">ع</td><td>Serre la gorge comme si tu allais soulever une charge lourde, puis dis « a ». Ce n'est pas un « a » normal.</td><td><b>3</b>andi — عندي</td></tr>
-      <tr><td class="f">7 (ou h)</td><td class="ar" style="font-size:22px">ح</td><td>Un « h » soufflé fort, gorge rétrécie, comme si tu embuais une vitre. Pas de vibration.</td><td>l<b>7</b>em — لحم</td></tr>
-      <tr><td class="f">kh</td><td class="ar" style="font-size:22px">خ</td><td>La jota espagnole, ou « ach » allemand. Raclement <i>sourd</i> au fond du palais.</td><td><b>kh</b>obz — خبز</td></tr>
-      <tr><td class="f">gh</td><td class="ar" style="font-size:22px">غ</td><td>Le même endroit que « kh » mais <i>sonore</i> — c'est presque exactement le r français de « Paris ».</td><td><b>gh</b>ali — غالي</td></tr>
-      <tr><td class="f">q (ou 9)</td><td class="ar" style="font-size:22px">ق</td><td>Un « k » produit très en arrière, au fond de la gorge. En algérois, souvent prononcé « g ».</td><td><b>q</b>ahwa — قهوة</td></tr>
-      <tr><td class="f">r</td><td class="ar" style="font-size:22px">ر</td><td>Le r <b>roulé</b> avec la pointe de la langue (comme en espagnol ou en italien). Jamais le r français.</td><td><b>r</b>ani — راني</td></tr>
-    </table>
-    <div class="note"><b>Le piège n°1 des francophones :</b> prononcer « r » à la française. En derja, le r français correspond à <b>gh</b> (غ), pas à r (ر). Dire « ghani » au lieu de « rani » change le mot.</div>
-  </div>
 
-  <div class="card">
-    <h3 style="margin-top:0">Les emphatiques</h3>
-    <p>ص ط ض ق — mêmes lettres que s, t, d, k mais prononcées la langue plate et reculée, ce qui assombrit la voyelle à côté. Comparé au français, ça sonne « gros ».</p>
-    <p class="tiny">Ne t'en occupe pas au mois 1. C'est ce qui fait la différence entre « accent français » et « accent correct », mais on te comprendra sans.</p>
-  </div>
+<div class="bento">
+  <button class="tile hero" data-go="session">
+    <div class="flame" id="hflame"></div>
+    <span class="ico">🔥</span>
+    <div class="t">Séance du jour</div>
+    <div class="d" id="herod">20 questions mêlant vocabulaire, conjugaison et phrases.</div>
+    <div class="mini"><i id="heroprog"></i></div>
+    <span class="go" id="herogo">Commencer</span>
+  </button>
 
-  <div class="card">
-    <h3 style="margin-top:0">Exercice quotidien : le shadowing</h3>
-    <ol style="padding-left:20px">
-      <li>Prends 20 secondes d'une vidéo algérienne.</li>
-      <li>Écoute-les 5 fois sans rien dire.</li>
-      <li>Rejoue et parle <b>en même temps</b> que la personne, en imitant le rythme et l'intonation — même si tu ne comprends pas les mots.</li>
-      <li>Recommence jusqu'à être synchrone.</li>
-    </ol>
-    <p class="tiny">10 minutes de shadowing par semaine font plus pour l'accent que 10 heures de règles de prononciation.</p>
-  </div>
+  <button class="tile tall" data-go="vocab">
+    <div><span class="ico">🗂</span>
+    <div class="t">Vocabulaire</div>
+    <div class="d" id="tvocab">—</div></div>
+    <div class="mini"><i id="bvocab"></i></div>
+  </button>
 
-  <div class="card">
-    <h3 style="margin-top:0">Code d'écriture latine (Arabizi) utilisé ici</h3>
-    <p><code>3</code>=ع · <code>7</code>=ح · <code>kh</code>=خ · <code>gh</code>=غ · <code>q</code>=ق · <code>j</code>=ج (comme en français) · <code>ch</code>=ش · <code>dh</code>=ذ · <code>th</code>=ث</p>
-    <p class="tiny">Les chiffres viennent de la forme des lettres arabes. C'est le système que les Algériens utilisent réellement pour écrire en SMS.</p>
-  </div>
+  <button class="tile" data-go="conj">
+    <span class="ico">🔀</span>
+    <div class="t">Conjugaison</div>
+    <div class="d" id="tconj">—</div>
+  </button>
+
+  <button class="tile" data-go="phr">
+    <span class="ico">💬</span>
+    <div class="t">Phrases</div>
+    <div class="d" id="tphr">—</div>
+  </button>
+
+  <button class="tile wide" data-go="compare">
+    <span class="ico">🏆</span>
+    <div class="t">Classement</div>
+    <div class="d" id="tcompare">Compare-toi aux autres, vois tes points forts et faibles.</div>
+  </button>
+
+  <button class="tile small" data-go="lex"><span class="ico">📖</span><div class="t">Lexique</div><div class="d" id="tlex">—</div></button>
+  <button class="tile small" data-go="gram"><span class="ico">📐</span><div class="t">Grammaire</div><div class="d">8 leçons</div></button>
+  <button class="tile small" data-go="pron"><span class="ico">🗣</span><div class="t">Prononciation</div><div class="d">Les 6 sons</div></button>
+  <button class="tile small" data-go="stats"><span class="ico">📊</span><div class="t">Progression</div><div class="d" id="tstats">—</div></button>
+  <button class="tile small" data-go="plan"><span class="ico">🧭</span><div class="t">Plan</div><div class="d">Méthode</div></button>
+  <button class="tile small" data-go="add"><span class="ico">➕</span><div class="t">Ajouter</div><div class="d">Une carte</div></button>
 </div>
-<div class="panel" id="p-vocab">
-  <div class="card">
+
+<p class="tiny" style="text-align:center;margin-top:26px;opacity:.5">
+  Derja · version <span id="ver">1.1.0</span> · <span id="vmode">…</span>
+</p>
+</div>
+<div class="view" id="v-session">
+<div id="sesrun">
+  <div id="sesbar">
+    <div class="row" style="justify-content:space-between">
+      <span class="tiny" id="sescount">—</span>
+      <span class="tiny" id="sestype">—</span>
+    </div>
+    <div class="bar"><i id="sesbarfill"></i></div>
+  </div>
+  <div class="card sesq">
+    <div class="lbl" id="seslbl">—</div>
+    <div class="q" id="sesq">—</div>
+    <div id="sesbody"></div>
+    <div id="sesfb"></div>
+  </div>
+  <div class="row" style="justify-content:center"><button class="act" id="sesquit">Arrêter la séance</button></div>
+</div>
+
+<div id="sesdone" style="display:none">
+  <div class="card done">
+    <div class="big" id="dbig">🎉</div>
+    <h2 id="dtitle">Séance terminée</h2>
+    <div class="score" id="dscore">—</div>
+    <p class="tiny" id="dsub">—</p>
+    <div id="dstreak" class="note" style="text-align:left"></div>
+    <div class="row" style="justify-content:center;margin-top:16px">
+      <button class="act pri" id="dagain">Nouvelle séance</button>
+      <button class="act" id="dhome">Retour à l'accueil</button>
+    </div>
+  </div>
+  <div class="card"><h3 style="margin-top:0">Ce que tu as raté</h3><table id="dmiss"></table></div>
+</div>
+</div>
+<div class="view" id="v-vocab"><div class="card">
     <div class="row" style="justify-content:space-between">
       <select id="vcat"></select>
       <span class="tiny" id="vstat"></span>
@@ -233,90 +317,8 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
       <button class="act pri" id="vshow">Afficher la réponse</button>
     </div>
   </div>
-  <p class="tiny">Dis la réponse <b>à voix haute</b> avant de retourner la carte. Les cartes ratées reviennent plus souvent.</p>
-</div>
-<div class="panel" id="p-lex">
-  <div class="card">
-    <input type="text" id="lq" placeholder="Rechercher… (français, arabizi, arabe ou catégorie)" autocomplete="off">
-    <div class="row" style="margin-top:10px">
-      <select id="lcat"></select>
-      <select id="lstat">
-        <option value="*">Tous les statuts</option>
-        <option value="new">Jamais vus</option>
-        <option value="learn">En cours</option>
-        <option value="ok">Maîtrisés</option>
-        <option value="mine">Mes cartes</option>
-      </select>
-      <span class="tiny" id="lcount" style="margin-left:auto"></span>
-    </div>
-  </div>
-
-  <div class="card" id="lpending" style="display:none;border-color:#f0d9a8;background:var(--warn-soft)">
-    <div class="row" style="justify-content:space-between;align-items:center">
-      <div><b id="lpendcount"></b> <span class="tiny">en attente de traduction — elles n'apparaissent pas en révision</span></div>
-      <button class="act" id="lpendshow">Voir</button>
-    </div>
-  </div>
-
-  <div class="card" id="laddcard">
-    <div class="row" style="justify-content:space-between;align-items:center">
-      <h3 style="margin:0">Ajouter une carte</h3>
-      <button class="act" id="ltoggle">+ Nouvelle carte</button>
-    </div>
-    <div id="lform" style="display:none;margin-top:14px">
-      <div class="grid2">
-        <div>
-          <div class="tiny">Catégorie</div>
-          <select id="fcat" style="width:100%;margin-top:4px"></select>
-          <input type="text" id="fcatnew" placeholder="Nom de la nouvelle catégorie" style="display:none;margin-top:6px">
-        </div>
-        <div>
-          <div class="tiny">Français <span style="color:var(--bad)">*</span></div>
-          <input type="text" id="ffr" placeholder="ex : la voisine" style="margin-top:4px">
-        </div>
-        <div>
-          <div class="tiny">Arabizi <span style="color:var(--bad)">*</span></div>
-          <input type="text" id="farz" placeholder="ex : jarti" style="margin-top:4px">
-        </div>
-        <div>
-          <div class="tiny">Arabe (optionnel)</div>
-          <input type="text" id="far" placeholder="جارتي" dir="rtl" style="margin-top:4px">
-        </div>
-      </div>
-      <label class="row" style="margin-top:14px;gap:8px;cursor:pointer;align-items:flex-start">
-        <input type="checkbox" id="fask" style="margin-top:3px;width:auto">
-        <span><b>Cherche-moi la traduction</b><br>
-        <span class="tiny">Tape seulement le français. La carte est enregistrée en attente et n'entre en révision qu'une fois traduite.</span></span>
-      </label>
-      <div class="tiny" style="margin-top:10px">Note de prononciation (optionnel)</div>
-      <input type="text" id="fnote" placeholder="ex : le j se dit comme en français" style="margin-top:4px">
-      <div class="row" style="margin-top:12px">
-        <button class="act pri" id="fadd">Ajouter au deck</button>
-        <button class="act" id="fcancel">Annuler</button>
-      </div>
-      <div id="ffb"></div>
-      <p class="tiny" style="margin-bottom:0">Tes cartes sont mélangées aux autres dans l'onglet Vocabulaire et sauvegardées dans le navigateur.</p>
-    </div>
-  </div>
-
-  <div class="card" style="padding:6px 0 0">
-    <div style="max-height:60vh;overflow:auto">
-      <table id="ltable"></table>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="row">
-      <button class="act" id="lexport">Exporter pour Quizlet</button>
-      <button class="act" id="lreset">Réinitialiser ma progression</button>
-    </div>
-    <textarea id="lout" style="display:none;width:100%;height:180px;margin-top:12px;font-size:12px;
-      border:1px solid var(--line);border-radius:10px;padding:10px;font-family:ui-monospace,Menlo,monospace"></textarea>
-    <p class="tiny" id="lexphelp" style="display:none;margin-bottom:0">Sélectionne tout, copie, puis dans Quizlet : Créer un set → Importer → séparateur <b>Tabulation</b>, cartes séparées par <b>Nouvelle ligne</b>.</p>
-  </div>
-</div>
-<div class="panel" id="p-conj">
-  <div class="card">
+  <p class="tiny">Dis la réponse <b>à voix haute</b> avant de retourner la carte. Les cartes ratées reviennent plus souvent.</p></div>
+<div class="view" id="v-conj"><div class="card">
     <h3 style="margin-top:0">Le principe</h3>
     <p>En derja, le verbe ne change pas de radical. Tu colles un <b>préfixe</b> devant pour le présent, un <b>suffixe</b> derrière pour le passé. Huit formes à automatiser, réutilisables sur des centaines de verbes.</p>
     <div class="grid2">
@@ -363,10 +365,8 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
       <span class="tiny" id="cscore" style="margin-left:auto"></span>
     </div>
     <div id="cfb"></div>
-  </div>
-</div>
-<div class="panel" id="p-phr">
-  <div class="card">
+  </div></div>
+<div class="view" id="v-phr"><div class="card">
     <div class="row" style="justify-content:space-between">
       <select id="scat"></select>
       <span class="tiny" id="sscore"></span>
@@ -390,10 +390,123 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
       <div class="row" style="margin-top:12px"><button class="act pri" id="snext">Phrase suivante →</button></div>
     </div>
   </div>
-  <p class="tiny">Une fois la réponse trouvée, <b>répète la phrase entière à voix haute 3 fois</b>. C'est là que la grammaire s'installe, pas dans le trou.</p>
+  <p class="tiny">Une fois la réponse trouvée, <b>répète la phrase entière à voix haute 3 fois</b>. C'est là que la grammaire s'installe, pas dans le trou.</p></div>
+<div class="view" id="v-lex"><div class="card">
+    <input type="text" id="lq" placeholder="Rechercher… (français, arabizi, arabe ou catégorie)" autocomplete="off">
+    <div class="row" style="margin-top:10px">
+      <select id="lcat"></select>
+      <select id="lstat">
+        <option value="*">Tous les statuts</option>
+        <option value="new">Jamais vus</option>
+        <option value="learn">En cours</option>
+        <option value="ok">Maîtrisés</option>
+        <option value="mine">Mes cartes</option>
+      </select>
+      <span class="tiny" id="lcount" style="margin-left:auto"></span>
+    </div>
+  </div>
+
+  <div class="card" id="lpending" style="display:none;border-color:#f0d9a8;background:var(--warn-soft)">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div><b id="lpendcount"></b> <span class="tiny">en attente de traduction — elles n'apparaissent pas en révision</span></div>
+      <button class="act" id="lpendshow">Voir</button>
+    </div>
+  </div>
+
+  
+
+  <div class="card" style="padding:6px 0 0">
+    <div style="max-height:60vh;overflow:auto">
+      <table id="ltable"></table>
+    </div>
+  </div>
+
+  
+<div class="card"><div class="row">
+  <button class="act" id="lexport">Exporter pour Quizlet</button>
+  <button class="act" id="ladd2">+ Ajouter une carte</button>
 </div>
-<div class="panel" id="p-gram">
+<textarea id="lout" style="display:none;width:100%;height:170px;margin-top:12px;font-size:12px;
+  border:1px solid var(--line);border-radius:12px;padding:10px;font-family:ui-monospace,Menlo,monospace"></textarea>
+<p class="tiny" id="lexphelp" style="display:none;margin-bottom:0">Sélectionne tout, copie, puis dans Quizlet : Créer un set → Importer → séparateur <b>Tabulation</b>, cartes séparées par <b>Nouvelle ligne</b>.</p>
+</div></div>
+<div class="view" id="v-add"><div class="card">
+  <h3 style="margin-top:0">Ajouter une carte</h3>
+  <div class="grid2">
+    <div><div class="tiny">Catégorie</div>
+      <select id="fcat" style="margin-top:4px"></select>
+      <input type="text" id="fcatnew" placeholder="Nom de la nouvelle catégorie" style="display:none;margin-top:6px"></div>
+    <div><div class="tiny">Français <span style="color:var(--bad)">*</span></div>
+      <input type="text" id="ffr" placeholder="ex : la voisine" style="margin-top:4px"></div>
+    <div><div class="tiny">Arabizi</div>
+      <input type="text" id="farz" placeholder="ex : jarti" style="margin-top:4px"></div>
+    <div><div class="tiny">Arabe (optionnel)</div>
+      <input type="text" id="far" placeholder="جارتي" dir="rtl" style="margin-top:4px"></div>
+  </div>
+  <label class="row" style="margin-top:14px;gap:10px;cursor:pointer;align-items:flex-start">
+    <input type="checkbox" id="fask" style="width:auto;margin-top:3px">
+    <span><b>Cherche-moi la traduction</b><br>
+    <span class="tiny">Tape seulement le français. La carte attend sa traduction et n'entre pas en révision.</span></span>
+  </label>
+  <div class="tiny" style="margin-top:10px">Note de prononciation (optionnel)</div>
+  <input type="text" id="fnote" placeholder="ex : le j se dit comme en français" style="margin-top:4px">
+  <div class="row" style="margin-top:14px"><button class="act pri" id="fadd">Ajouter</button></div>
+  <div id="ffb"></div>
+</div></div>
+<div class="view" id="v-compare">
+<div class="card">
+  <h3 style="margin-top:0">Classement</h3>
+  <p class="tiny">Classé par nombre de réponses. Réviser régulièrement compte plus que réussir du premier coup.</p>
+  <div id="lb"><p class="tiny">Chargement…</p></div>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">Tes points forts</h3>
+  <table id="cstrong"></table>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">Tes points faibles</h3>
+  <table id="cweak"></table>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">Confidentialité</h3>
+  <label class="row" style="gap:10px;cursor:pointer;align-items:flex-start">
+    <input type="checkbox" id="cshare" style="width:auto;margin-top:3px">
+    <span>Apparaître dans le classement<br>
+    <span class="tiny">Décoché, tu continues à voir les autres mais personne ne voit tes chiffres.</span></span>
+  </label>
+  <div id="cshfb"></div>
+</div>
+</div>
+<div class="view" id="v-stats"><div class="card">
+    <h3 style="margin-top:0">Vue d'ensemble</h3>
+    <div id="pkpi" class="grid2"></div>
+  </div>
   <div class="card">
+    <h3 style="margin-top:0">Ces 30 derniers jours</h3>
+    <div id="pcal" style="display:flex;gap:3px;flex-wrap:wrap"></div>
+    <p class="tiny" id="pstreak" style="margin-bottom:0"></p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Tes points faibles</h3>
+    <p class="tiny">Les items où tu te trompes le plus. Ils reviennent déjà plus souvent dans les révisions.</p>
+    <table id="pweak"></table>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Détail par catégorie</h3>
+    <table id="pcat"></table>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Synchronisation</h3>
+    <table id="psync"></table>
+    <div class="row" style="margin-top:10px">
+      <button class="act" id="psyncnow">Synchroniser maintenant</button>
+      <button class="act" id="pexp">Exporter une sauvegarde</button>
+    </div>
+    <textarea id="pdata" style="display:none;width:100%;height:140px;margin-top:12px;font-size:11px;
+      border:1px solid var(--line);border-radius:10px;padding:10px;font-family:ui-monospace,Menlo,monospace"></textarea>
+    <div id="pfb"></div>
+  </div></div>
+<div class="view" id="v-gram"><div class="card">
     <h3 style="margin-top:0">1. Les pronoms</h3>
     <table>
       <tr><th>Français</th><th>Arabizi</th><th>Arabe</th></tr>
@@ -481,44 +594,89 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
       <tr><td class="f">tji</td><td>→</td><td class="f">arwah !</td><td>viens ! (irrégulier, très courant)</td></tr>
     </table>
     <p class="tiny">Négatif : <b>ma</b> + présent 2ᵉ pers. + <b>ch</b> → <i>ma tchoufch</i> = ne regarde pas.</p>
+  </div></div>
+<div class="view" id="v-pron"><div class="card">
+    <h3 style="margin-top:0">Les 6 sons qui n'existent pas en français</h3>
+    <p class="tiny">C'est 90&nbsp;% de l'accent. Travaille-les 2 minutes par jour et le reste suivra.</p>
+    <table>
+      <tr><th>Signe</th><th>Lettre</th><th>Comment le produire</th><th>Exemple</th></tr>
+      <tr><td class="f">3</td><td class="ar" style="font-size:22px">ع</td><td>Serre la gorge comme si tu allais soulever une charge lourde, puis dis « a ». Ce n'est pas un « a » normal.</td><td><b>3</b>andi — عندي</td></tr>
+      <tr><td class="f">7 (ou h)</td><td class="ar" style="font-size:22px">ح</td><td>Un « h » soufflé fort, gorge rétrécie, comme si tu embuais une vitre. Pas de vibration.</td><td>l<b>7</b>em — لحم</td></tr>
+      <tr><td class="f">kh</td><td class="ar" style="font-size:22px">خ</td><td>La jota espagnole, ou « ach » allemand. Raclement <i>sourd</i> au fond du palais.</td><td><b>kh</b>obz — خبز</td></tr>
+      <tr><td class="f">gh</td><td class="ar" style="font-size:22px">غ</td><td>Le même endroit que « kh » mais <i>sonore</i> — c'est presque exactement le r français de « Paris ».</td><td><b>gh</b>ali — غالي</td></tr>
+      <tr><td class="f">q (ou 9)</td><td class="ar" style="font-size:22px">ق</td><td>Un « k » produit très en arrière, au fond de la gorge. En algérois, souvent prononcé « g ».</td><td><b>q</b>ahwa — قهوة</td></tr>
+      <tr><td class="f">r</td><td class="ar" style="font-size:22px">ر</td><td>Le r <b>roulé</b> avec la pointe de la langue (comme en espagnol ou en italien). Jamais le r français.</td><td><b>r</b>ani — راني</td></tr>
+    </table>
+    <div class="note"><b>Le piège n°1 des francophones :</b> prononcer « r » à la française. En derja, le r français correspond à <b>gh</b> (غ), pas à r (ر). Dire « ghani » au lieu de « rani » change le mot.</div>
   </div>
-</div>
-<div class="panel" id="p-stats">
+
   <div class="card">
-    <h3 style="margin-top:0">Vue d'ensemble</h3>
-    <div id="pkpi" class="grid2"></div>
+    <h3 style="margin-top:0">Les emphatiques</h3>
+    <p>ص ط ض ق — mêmes lettres que s, t, d, k mais prononcées la langue plate et reculée, ce qui assombrit la voyelle à côté. Comparé au français, ça sonne « gros ».</p>
+    <p class="tiny">Ne t'en occupe pas au mois 1. C'est ce qui fait la différence entre « accent français » et « accent correct », mais on te comprendra sans.</p>
   </div>
+
   <div class="card">
-    <h3 style="margin-top:0">Ces 30 derniers jours</h3>
-    <div id="pcal" style="display:flex;gap:3px;flex-wrap:wrap"></div>
-    <p class="tiny" id="pstreak" style="margin-bottom:0"></p>
+    <h3 style="margin-top:0">Exercice quotidien : le shadowing</h3>
+    <ol style="padding-left:20px">
+      <li>Prends 20 secondes d'une vidéo algérienne.</li>
+      <li>Écoute-les 5 fois sans rien dire.</li>
+      <li>Rejoue et parle <b>en même temps</b> que la personne, en imitant le rythme et l'intonation — même si tu ne comprends pas les mots.</li>
+      <li>Recommence jusqu'à être synchrone.</li>
+    </ol>
+    <p class="tiny">10 minutes de shadowing par semaine font plus pour l'accent que 10 heures de règles de prononciation.</p>
   </div>
+
   <div class="card">
-    <h3 style="margin-top:0">Tes points faibles</h3>
-    <p class="tiny">Les items où tu te trompes le plus. Ils reviennent déjà plus souvent dans les révisions.</p>
-    <table id="pweak"></table>
+    <h3 style="margin-top:0">Code d'écriture latine (Arabizi) utilisé ici</h3>
+    <p><code>3</code>=ع · <code>7</code>=ح · <code>kh</code>=خ · <code>gh</code>=غ · <code>q</code>=ق · <code>j</code>=ج (comme en français) · <code>ch</code>=ش · <code>dh</code>=ذ · <code>th</code>=ث</p>
+    <p class="tiny">Les chiffres viennent de la forme des lettres arabes. C'est le système que les Algériens utilisent réellement pour écrire en SMS.</p>
+  </div></div>
+<div class="view" id="v-plan"><div class="card">
+    <h3 style="margin-top:0">Pourquoi Quizlet ne suffit pas</h3>
+    <p>Les flashcards mot-à-mot te donnent du <b>lexique</b>, c'est-à-dire environ un tiers du travail. Le reste — conjugaison, accords, ordre des mots, réflexes — s'acquiert autrement&nbsp;:</p>
+    <ul>
+      <li><b>Les chunks</b> : mémoriser des phrases entières plutôt que des mots. La grammaire s'installe implicitement, exactement comme un enfant.</li>
+      <li><b>Le drill de patterns</b> : conjuguer à voix haute les 8 personnes jusqu'à ce que ça sorte sans réfléchir. La derja est très régulière, donc c'est rentable.</li>
+      <li><b>L'input massif</b> : écouter beaucoup, même sans tout comprendre.</li>
+    </ul>
   </div>
+
   <div class="card">
-    <h3 style="margin-top:0">Détail par catégorie</h3>
-    <table id="pcat"></table>
+    <h3 style="margin-top:0">Ta séance type — 25 minutes</h3>
+    <table>
+      <tr><td class="f">5 min</td><td>Onglet <b>Vocabulaire</b> — flashcards, à voix haute</td></tr>
+      <tr><td class="f">7 min</td><td>Onglet <b>Conjugaison</b> — un verbe, les 8 personnes, à voix haute</td></tr>
+      <tr><td class="f">8 min</td><td>Onglet <b>Phrases</b> — texte à trous + répétition de la phrase complète</td></tr>
+      <tr><td class="f">5 min</td><td>Écoute libre (voir ci-dessous), sans chercher à tout comprendre</td></tr>
+    </table>
+    <div class="note"><b>Règle non négociable :</b> tout se dit à voix haute. Une phrase lue en silence n'entre pas dans la bouche. Comme tu n'as personne autour de toi, ta bouche est ton seul entraînement moteur.</div>
   </div>
+
   <div class="card">
-    <h3 style="margin-top:0">Synchronisation</h3>
-    <table id="psync"></table>
-    <div class="row" style="margin-top:10px">
-      <button class="act" id="psyncnow">Synchroniser maintenant</button>
-      <button class="act" id="pexp">Exporter une sauvegarde</button>
-    </div>
-    <textarea id="pdata" style="display:none;width:100%;height:140px;margin-top:12px;font-size:11px;
-      border:1px solid var(--line);border-radius:10px;padding:10px;font-family:ui-monospace,Menlo,monospace"></textarea>
-    <div id="pfb"></div>
+    <h3 style="margin-top:0">Comment t'exposer, sans entourage arabophone</h3>
+    <ul>
+      <li><b>Un tuteur algérien en ligne</b> (italki, Preply) — 1×/semaine, 30 min. C'est de loin le meilleur rapport effort/progrès quand on n'a personne. Cherche explicitement « Algerian Arabic / Darja », pas « Arabic ».</li>
+      <li><b>YouTube algérien</b> : vlogs du quotidien, chaînes de cuisine, sketchs. Le contenu banal est le plus utile — c'est la langue que tu veux parler.</li>
+      <li><b>Séries algériennes</b> pendant le Ramadan (beaucoup sont sur YouTube), avec sous-titres arabes si possible.</li>
+      <li><b>Musique</b> : raï et chaâbi. Prends une chanson, sors les paroles, traduis-la ligne par ligne. Une chanson bien travaillée vaut 50 flashcards.</li>
+      <li><b>Podcasts / lives</b> en fond sonore, même en tâche de fond — l'oreille s'habitue aux sons avant que le cerveau comprenne.</li>
+    </ul>
+    <div class="note"><b>Attention au piège :</b> la plupart des ressources « arabe » enseignent le <i>fusha</i> (arabe littéraire) ou le dialecte égyptien/marocain. Ce n'est pas ce que parle ta famille. Filtre systématiquement sur <b>algérien</b>.</div>
   </div>
-</div>
-<p class="tiny" style="text-align:center;margin-top:32px;opacity:.5">
-  Derja · version <span id="ver">1.0.0</span> · <span id="vmode">…</span>
-</p>
+
+  <div class="card">
+    <h3 style="margin-top:0">Sur 3 mois</h3>
+    <table>
+      <tr><td class="f">Mois 1</td><td>Sons + 150 mots + présent/passé des verbes réguliers. Objectif : te présenter et poser 5 questions.</td></tr>
+      <tr><td class="f">Mois 2</td><td>+150 mots + verbes irréguliers + négation. Objectif : tenir une conversation de 2 minutes.</td></tr>
+      <tr><td class="f">Mois 3</td><td>Chunks longs, raconter au passé, comprendre un dialogue simple à vitesse réelle.</td></tr>
+    </table>
+    <p class="tiny">L'écriture arabe n'est pas prioritaire pour toi, mais elle est affichée partout ici — à force de la voir, tu commenceras à reconnaître les mots sans effort.</p>
+  </div></div>
 </div>
 
+<script>window.TITLES = {"session":"Séance du jour","vocab":"Vocabulaire","conj":"Conjugaison","phr":"Phrases","lex":"Lexique","gram":"Grammaire","pron":"Prononciation","stats":"Progression","plan":"Plan de travail","compare":"Classement","add":"Ajouter une carte"};</script>
 <script src="/seed-data.js"></script>
 <script type="module" src="/app.js"></script>
 </body>

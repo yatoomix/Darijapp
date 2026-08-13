@@ -239,3 +239,55 @@ from pg_tables
 where schemaname = 'public'
   and tablename in ('profiles', 'items', 'verbs', 'progress', 'activity')
 order by tablename;
+
+-- ============================================================
+--  COMPARAISON ENTRE UTILISATEURS
+--  Les fonctions sont SECURITY DEFINER car la RLS de progress
+--  interdit de lire les lignes des autres. Elles ne renvoient
+--  que des AGRÉGATS, jamais de lignes brutes.
+-- ============================================================
+alter table public.profiles
+  add column if not exists share_stats boolean not null default true;
+
+create or replace function public.leaderboard()
+returns table (
+  uid uuid, name text, answers bigint, ok bigint, ko bigint,
+  accuracy int, mastered bigint, active_days bigint, is_me boolean
+)
+language sql stable security definer set search_path = public, pg_temp
+as $$
+  select p.id, p.display_name,
+    coalesce(sum(pr.seen), 0), coalesce(sum(pr.ok), 0), coalesce(sum(pr.ko), 0),
+    case when coalesce(sum(pr.seen), 0) = 0 then 0
+         else round(sum(pr.ok)::numeric * 100 / sum(pr.seen))::int end,
+    count(pr.*) filter (where pr.score >= 3),
+    (select count(*) from public.activity a where a.user_id = p.id and a.answers > 0),
+    p.id = auth.uid()
+  from public.profiles p
+  left join public.progress pr on pr.user_id = p.id
+  where p.share_stats or p.id = auth.uid()
+  group by p.id, p.display_name
+  order by 3 desc;
+$$;
+
+create or replace function public.category_group_stats()
+returns table (
+  category text, group_seen bigint, group_ok bigint, learners bigint,
+  my_seen bigint, my_ok bigint
+)
+language sql stable security definer set search_path = public, pg_temp
+as $$
+  select i.category, sum(pr.seen), sum(pr.ok), count(distinct pr.user_id),
+    coalesce(sum(pr.seen) filter (where pr.user_id = auth.uid()), 0),
+    coalesce(sum(pr.ok)   filter (where pr.user_id = auth.uid()), 0)
+  from public.progress pr
+  join public.items i    on i.id = pr.item_id and pr.item_type = 'item'
+  join public.profiles p on p.id = pr.user_id
+  where p.share_stats or p.id = auth.uid()
+  group by i.category;
+$$;
+
+revoke execute on function public.leaderboard()          from public, anon;
+revoke execute on function public.category_group_stats() from public, anon;
+grant  execute on function public.leaderboard()          to authenticated;
+grant  execute on function public.category_group_stats() to authenticated;
