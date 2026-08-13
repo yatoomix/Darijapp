@@ -200,6 +200,7 @@ function onEnter(id){
   if (id === 'stats')   renderStats();
   if (id === 'compare') renderCompare();
   if (id === 'add')     fillForm();
+  if (id === 'account') renderAccount();
   if (id === 'session') startSession();
 }
 $('back').addEventListener('click', () => history.back());
@@ -782,29 +783,108 @@ sb.auth.onAuthStateChange((_e, s) => {
   if (SESSION) {
     LOCAL_ONLY = false; ls.set(K.mode, null);
     $('gate').classList.remove('show');
-    if (!was) pull();
+    if (!was) { pull(); if (current === 'home') renderHome(); }
   }
   renderWho();
+  if (current === 'account') renderAccount();
 });
-$('gsend').addEventListener('click', async () => {
+/* --- bascule code / mot de passe --- */
+document.querySelectorAll('#gtabs [data-auth]').forEach(b => b.addEventListener('click', () => {
+  const mode = b.dataset.auth;
+  document.querySelectorAll('#gtabs [data-auth]').forEach(x => x.classList.toggle('pri', x === b));
+  $('gcode').style.display = mode === 'code' ? '' : 'none';
+  $('gpwd').style.display  = mode === 'pwd'  ? '' : 'none';
+  $('gfb').innerHTML = '';
+}));
+
+/* --- connexion par code à 6 chiffres --- */
+const humanAuthError = m => {
+  if (/rate limit|too many/i.test(m))
+    return "Limite d'envoi atteinte. Le service email de Supabase est plafonné à 2 messages par heure tant qu'un SMTP externe n'est pas branché. Réessaie dans une heure, ou connecte-toi avec un mot de passe.";
+  if (/signups not allowed/i.test(m))
+    return "Aucun compte pour cette adresse. L'accès est sur invitation.";
+  if (/invalid|expired/i.test(m))
+    return 'Code invalide ou expiré. Redemande un code.';
+  return m;
+};
+
+async function sendCode(){
   const email = $('gmail').value.trim(), fb = $('gfb');
   if (!/.+@.+\..+/.test(email)) return fb.innerHTML = '<div class="fb no">Adresse email invalide.</div>';
   fb.innerHTML = '<div class="fb ok"><span class="spin"></span> Envoi…</div>';
-  const { error } = await sb.auth.signInWithOtp({
-    email, options: { emailRedirectTo: window.location.origin, shouldCreateUser: false } });
-  fb.innerHTML = error
-    ? `<div class="fb no">${esc(error.message)}<br><span class="tiny">L'accès est sur invitation : sans invitation, aucun compte ne peut être créé.</span></div>`
-    : '<div class="fb ok">Lien envoyé. Ouvre-le depuis cet appareil.</div>';
+  const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+  if (error) { fb.innerHTML = `<div class="fb no">${esc(humanAuthError(error.message))}</div>`; return; }
+  $('gcodebox').style.display = 'block';
+  fb.innerHTML = '<div class="fb ok">Code envoyé. Saisis-le ci-dessus — reste dans cette app.</div>';
+  setTimeout(() => $('gtoken')?.focus(), 80);
+}
+async function verifyCode(){
+  const email = $('gmail').value.trim(), token = $('gtoken').value.replace(/\D/g,''), fb = $('gfb');
+  if (token.length !== 6) { shake($('gtoken')); return fb.innerHTML = '<div class="fb no">Le code fait 6 chiffres.</div>'; }
+  fb.innerHTML = '<div class="fb ok"><span class="spin"></span> Vérification…</div>';
+  const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
+  if (error) { shake($('gtoken')); fb.innerHTML = `<div class="fb no">${esc(humanAuthError(error.message))}</div>`; return; }
+  fb.innerHTML = '<div class="fb ok">✓ Connecté.</div>';
+  burst('✓');
+}
+$('gsend').addEventListener('click', sendCode);
+$('gresend').addEventListener('click', sendCode);
+$('gverify').addEventListener('click', verifyCode);
+$('gmail').addEventListener('keydown', e => { if (e.key === 'Enter') sendCode(); });
+$('gtoken').addEventListener('keydown', e => { if (e.key === 'Enter') verifyCode(); });
+// saisie automatique du code reçu par SMS/email sur iOS
+$('gtoken').addEventListener('input', function(){
+  this.value = this.value.replace(/\D/g,'').slice(0,6);
+  if (this.value.length === 6) verifyCode();
 });
-$('gmail').addEventListener('keydown', e => { if (e.key === 'Enter') $('gsend').click(); });
+
+/* --- connexion par mot de passe --- */
+$('glogin').addEventListener('click', async () => {
+  const email = $('gmail2').value.trim(), password = $('gpass').value, fb = $('gfb');
+  if (!/.+@.+\..+/.test(email) || !password)
+    return fb.innerHTML = '<div class="fb no">Email et mot de passe requis.</div>';
+  fb.innerHTML = '<div class="fb ok"><span class="spin"></span> Connexion…</div>';
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) {
+    shake($('gpass'));
+    fb.innerHTML = /invalid login/i.test(error.message)
+      ? "<div class=\"fb no\">Email ou mot de passe incorrect. Si tu n'as jamais défini de mot de passe, connecte-toi d'abord avec un code.</div>"
+      : `<div class="fb no">${esc(error.message)}</div>`;
+    return;
+  }
+  fb.innerHTML = '<div class="fb ok">✓ Connecté.</div>'; burst('✓');
+});
+$('gpass').addEventListener('keydown', e => { if (e.key === 'Enter') $('glogin').click(); });
+
 $('glocal').addEventListener('click', () => {
   LOCAL_ONLY = true; ls.set(K.mode,'local'); $('gate').classList.remove('show'); renderWho(); renderHome();
 });
-$('sout').addEventListener('click', async () => {
-  if (SESSION) {
-    if (!confirm('Se déconnecter ? La progression synchronisée est conservée en ligne.')) return;
-    await push(); await sb.auth.signOut(); SESSION = null;
-  }
+
+/* --- écran de compte --- */
+$('sout').addEventListener('click', () => {
+  if (SESSION) go('account');
+  else { ls.set(K.mode, null); LOCAL_ONLY = false; $('gate').classList.add('show'); }
+});
+function renderAccount(){
+  const st = streak();
+  $('acinfo').innerHTML = SESSION ? `
+    <tr><td>Email</td><td class="f">${esc(SESSION.user.email)}</td></tr>
+    <tr><td>Série</td><td class="f">${st} jour${st>1?'s':''}</td></tr>
+    <tr><td>Synchronisation</td><td class="f">${Object.keys(QUEUE).length ? Object.keys(QUEUE).length + ' en attente' : 'à jour'}</td></tr>`
+    : '<tr><td class="tiny">Mode local — aucun compte.</td></tr>';
+}
+$('acsave').addEventListener('click', async () => {
+  const p = $('acpass').value, fb = $('acfb');
+  if (p.length < 8) { shake($('acpass')); return fb.innerHTML = '<div class="fb no">8 caractères minimum.</div>'; }
+  fb.innerHTML = '<div class="fb ok"><span class="spin"></span> Enregistrement…</div>';
+  const { error } = await sb.auth.updateUser({ password: p });
+  if (error) return fb.innerHTML = `<div class="fb no">${esc(error.message)}</div>`;
+  $('acpass').value = ''; burst('✓');
+  fb.innerHTML = '<div class="fb ok">✓ Mot de passe défini. Tu peux désormais te connecter sans email.</div>';
+});
+$('aclogout').addEventListener('click', async () => {
+  if (!confirm('Se déconnecter ? La progression synchronisée est conservée en ligne.')) return;
+  await push(); await sb.auth.signOut(); SESSION = null;
   ls.set(K.mode, null); LOCAL_ONLY = false;
   $('gate').classList.add('show'); renderWho();
 });

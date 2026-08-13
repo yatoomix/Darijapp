@@ -184,9 +184,32 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
   <p class="sub" style="margin-bottom:18px">Arabe algérien — vocabulaire, conjugaison, phrases.</p>
   <div class="card">
     <h3 style="margin-top:0">Se connecter</h3>
-    <p class="tiny">Pas de mot de passe : tu reçois un lien par email. L'accès est sur invitation.</p>
-    <input type="email" id="gmail" placeholder="ton@email.com" autocomplete="email" inputmode="email">
-    <div class="row" style="margin-top:10px"><button class="act pri" id="gsend">Recevoir le lien</button></div>
+    <div class="row" id="gtabs" style="gap:6px">
+      <button class="act pri" data-auth="code" style="flex:1">Code par email</button>
+      <button class="act" data-auth="pwd" style="flex:1">Mot de passe</button>
+    </div>
+
+    <div id="gcode" style="margin-top:14px">
+      <p class="tiny">Tu reçois un code à 6 chiffres que tu saisis ici même. Aucun lien à ouvrir : ça fonctionne dans l'app installée sur ton écran d'accueil.</p>
+      <input type="email" id="gmail" placeholder="ton@email.com" autocomplete="email" inputmode="email">
+      <div class="row" style="margin-top:10px"><button class="act pri" id="gsend">Envoyer le code</button></div>
+      <div id="gcodebox" style="display:none;margin-top:12px">
+        <input type="text" id="gtoken" placeholder="- - - - - -" inputmode="numeric" autocomplete="one-time-code"
+               maxlength="6" style="text-align:center;letter-spacing:8px;font-size:24px;font-weight:700">
+        <div class="row" style="margin-top:10px">
+          <button class="act pri" id="gverify">Valider</button>
+          <button class="act" id="gresend">Renvoyer</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="gpwd" style="display:none;margin-top:14px">
+      <p class="tiny">Plus rapide au quotidien : aucun email, tout se passe dans l'app.</p>
+      <input type="email" id="gmail2" placeholder="ton@email.com" autocomplete="email" inputmode="email">
+      <input type="password" id="gpass" placeholder="Mot de passe" autocomplete="current-password" style="margin-top:8px">
+      <div class="row" style="margin-top:10px"><button class="act pri" id="glogin">Se connecter</button></div>
+      <p class="tiny" style="margin-bottom:0">Pas encore de mot de passe ? Connecte-toi une fois avec un code, puis définis-en un depuis Compte.</p>
+    </div>
     <div id="gfb"></div>
   </div>
   <div class="card">
@@ -261,7 +284,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 </div>
 
 <p class="tiny" style="text-align:center;margin-top:26px;opacity:.5">
-  Derja · version <span id="ver">1.1.0</span> · <span id="vmode">…</span>
+  Derja · version <span id="ver">1.2.0</span> · <span id="vmode">…</span>
 </p>
 </div>
 <div class="view" id="v-session">
@@ -674,9 +697,25 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
     </table>
     <p class="tiny">L'écriture arabe n'est pas prioritaire pour toi, mais elle est affichée partout ici — à force de la voir, tu commenceras à reconnaître les mots sans effort.</p>
   </div></div>
+<div class="view" id="v-account">
+  <div class="card">
+    <h3 style="margin-top:0">Ton compte</h3>
+    <table id="acinfo"></table>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Définir un mot de passe</h3>
+    <p class="tiny">Une fois défini, tu te connectes directement dans l'app, sans passer par ta boîte mail. C'est le plus confortable sur iPhone, et ça évite la limite d'envoi d'emails.</p>
+    <input type="password" id="acpass" placeholder="Au moins 8 caractères" autocomplete="new-password">
+    <div class="row" style="margin-top:10px"><button class="act pri" id="acsave">Enregistrer</button></div>
+    <div id="acfb"></div>
+  </div>
+  <div class="card">
+    <button class="act" id="aclogout">Se déconnecter</button>
+  </div>
+</div>
 </div>
 
-<script>window.TITLES = {"session":"Séance du jour","vocab":"Vocabulaire","conj":"Conjugaison","phr":"Phrases","lex":"Lexique","gram":"Grammaire","pron":"Prononciation","stats":"Progression","plan":"Plan de travail","compare":"Classement","add":"Ajouter une carte"};</script>
+<script>window.TITLES ={"session":"Séance du jour","vocab":"Vocabulaire","conj":"Conjugaison","phr":"Phrases","lex":"Lexique","gram":"Grammaire","pron":"Prononciation","stats":"Progression","plan":"Plan de travail","compare":"Classement","add":"Ajouter une carte","account":"Ton compte"};</script>
 <script src="/seed-data.js"></script>
 <script type="module" src="/app.js"></script>
 </body>
