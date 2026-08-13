@@ -430,7 +430,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 </div>
 
 <p class="tiny" style="text-align:center;margin-top:26px;opacity:.5">
-  DerjApp · version <span id="ver">1.8.1</span> · <span id="vmode">…</span>
+  DerjApp · version <span id="ver">1.9.1</span> · <span id="vmode">…</span>
 </p>
 </div>
 <div class="view" id="v-session">
@@ -614,24 +614,30 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 
 <div class="view" id="v-add"><div class="card">
   <h3 style="margin-top:0">Ajouter une carte</h3>
+  <div class="dfield"><label>Type</label>
+    <select id="fkind"><option value="word">Mot ou expression</option><option value="verb">Verbe</option></select>
+  </div>
+  <div class="note" id="fverbnote" style="display:none">Un verbe demande 16 formes conjuguées. Saisis seulement le français : il sera enregistré en attente, et sa conjugaison complétée avant d'entrer en révision.</div>
   <div class="grid2">
-    <div><div class="tiny">Catégorie</div>
+    <div id="fcatwrap"><div class="tiny">Catégorie</div>
       <select id="fcat" style="margin-top:4px"></select>
       <input type="text" id="fcatnew" placeholder="Nom de la nouvelle catégorie" style="display:none;margin-top:6px"></div>
     <div><div class="tiny">Français <span style="color:var(--bad)">*</span></div>
       <input type="text" id="ffr" placeholder="ex : la voisine" style="margin-top:4px"></div>
-    <div><div class="tiny">Arabizi</div>
+    <div><div class="tiny" id="flabarz">Arabizi</div>
       <input type="text" id="farz" placeholder="ex : jarti" style="margin-top:4px"></div>
     <div><div class="tiny">Arabe (optionnel)</div>
       <input type="text" id="far" placeholder="جارتي" dir="rtl" style="margin-top:4px"></div>
   </div>
-  <label class="row" style="margin-top:14px;gap:10px;cursor:pointer;align-items:flex-start">
+  <label class="row" id="faskwrap" style="margin-top:14px;gap:10px;cursor:pointer;align-items:flex-start">
     <input type="checkbox" id="fask" style="width:auto;margin-top:3px">
     <span><b>Cherche-moi la traduction</b><br>
     <span class="tiny">Tape seulement le français. La carte attend sa traduction et n'entre pas en révision.</span></span>
   </label>
+  <div id="fnotewrap">
   <div class="tiny" style="margin-top:10px">Note de prononciation (optionnel)</div>
   <input type="text" id="fnote" placeholder="ex : le j se dit comme en français" style="margin-top:4px">
+  </div>
   <div class="row" style="margin-top:14px"><button class="act pri" id="fadd">Ajouter</button></div>
   <div id="ffb"></div>
 </div></div>
@@ -906,6 +912,13 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
   </div>
 
   <div class="card">
+    <h3 style="margin-top:0">Contenu en attente</h3>
+    <table id="acpend"></table>
+    <div class="row" style="margin-top:10px"><button class="act" id="acpendgo">Voir les cartes en attente</button></div>
+    <p class="tiny" style="margin-bottom:0">Ces entrées sont visibles dans les listes mais exclues des révisions tant qu'elles n'ont pas de traduction.</p>
+  </div>
+
+  <div class="card">
     <h3 style="margin-top:0">Ton compte</h3>
     <table id="acinfo"></table>
   </div>
@@ -1014,10 +1027,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
     <div class="dfield"><label>Base (arabizi)</label><input type="text" id="dvfbase"></div>
     <div class="dfield"><label>Arabe</label><input type="text" id="dvfar" dir="rtl"></div>
     <div class="dfield"><label>Type</label><input type="text" id="dvfpat"></div>
-    <div class="dfield"><label>Orthographes acceptées</label>
-      <input type="text" id="dvfvar" placeholder="khdem, 5dem">
-      <div class="tiny" style="margin-top:4px">Séparées par des virgules, acceptées quelle que soit la forme demandée.</div>
-    </div>
+
     <div class="dfield"><label>Difficulté</label>
       <div class="row" id="dvflvl" style="gap:6px">
         <button class="act" data-l="1" style="flex:1">Niveau 1</button>

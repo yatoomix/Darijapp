@@ -300,6 +300,43 @@ function offerVariant(obj, table, saisi, valider, delaiSiIgnore){
   };
 }
 
+const verbVars = (v, tense, i) => (v.variants && v.variants[tense] && v.variants[tense][i]) || [];
+
+/* Pour un verbe, la variante s'écrit dans SA case : accepter « khadam »
+   partout reviendrait à valider une conjugaison fausse. */
+async function addVerbVariant(v, tense, i, texte){
+  const t = String(texte || '').trim();
+  if (!t) return false;
+  const obj = JSON.parse(JSON.stringify(v.variants || {}));
+  if (!Array.isArray(obj[tense])) obj[tense] = Array.from({length:8}, () => []);
+  if (!Array.isArray(obj[tense][i])) obj[tense][i] = [];
+  if (obj[tense][i].includes(t)) return false;
+  obj[tense][i] = [...obj[tense][i], t].slice(0, 8);
+  v.variants = obj; saveData();
+  if (SESSION && !String(v.id).startsWith('seed:')) {
+    const { error } = await sb.from('verbs').update({ variants: obj }).eq('id', v.id);
+    if (error) return false;
+  }
+  return true;
+}
+function offerVerbVariant(v, tense, i, saisi, valider, delai){
+  const txt = String(saisi || '').trim();
+  if (!txt) return valider(false);
+  $('sesfb').insertAdjacentHTML('beforeend',
+    `<div class="row" style="margin-top:10px">
+       <button class="act" id="varbtn" style="font-size:13px">✍️ C'est une autre orthographe correcte</button>
+     </div>`);
+  let fait = false;
+  const m = setTimeout(() => { if (!fait) { fait = true; valider(false); } }, delai);
+  $('varbtn').onclick = async () => {
+    if (fait) return; fait = true; clearTimeout(m);
+    await addVerbVariant(v, tense, i, txt);
+    burst('✓'); vibrate(14);
+    $('sesfb').innerHTML = `<div class="fb ok">✓ « ${esc(txt)} » acceptée pour cette forme.</div>`;
+    setTimeout(() => valider(true), 900);
+  };
+}
+
 const parseVariants = t => String(t || '')
   .split(/[\n,;/]+/).map(v => v.trim()).filter(Boolean)
   .filter((v, i, a) => a.indexOf(v) === i).slice(0, 12);
@@ -691,12 +728,12 @@ function sesStep(){
       <div class="row" style="justify-content:center;margin-top:12px">
         <button class="act pri" id="sgo">Vérifier</button><button class="act" id="sskip2">Je ne sais pas</button></div>`;
     const check = () => {
-      const ok = sameAnswer($('sin2').value, good, 'arabizi', x.variants);
+      const ok = sameAnswer($('sin2').value, good, 'arabizi', verbVars(x, t, p));
       if (!ok) shake($('sin2'));
       $('sesfb').innerHTML = ok ? `<div class="fb ok">✓ <b>${esc(good)}</b></div>`
                                 : `<div class="fb no">✗ C'était <b>${esc(good)}</b></div>`;
       if (ok) return sesAnswer(true, 'verb', x.id, `${x.fr} · ${PERS[p]}`, good, 700);
-      offerVariant(x, 'verbs', $('sin2').value,
+      offerVerbVariant(x, t, p, $('sin2').value,
         bon => sesAnswer(bon, 'verb', x.id, `${x.fr} · ${PERS[p]}`, good, bon ? 300 : 1200), 4200);
     };
     $('sgo').onclick = check;
@@ -1060,18 +1097,18 @@ function renderVerb(){
   $('dvbase').textContent = `${v.base} · ${v.pattern}`;
   document.querySelectorAll('#dvtense [data-t]').forEach(b =>
     b.classList.toggle('pri', b.dataset.t === VTENSE));
-  $('dvtable').innerHTML = (v.forms?.[VTENSE] || []).map((f,i) =>
-    `<tr><td>${PERS[i]}</td><td class="f">${esc(f)}</td></tr>`).join('')
+  $('dvtable').innerHTML = (v.forms?.[VTENSE] || []).map((f,i) => {
+    const vs = verbVars(v, VTENSE, i);
+    return `<tr><td>${PERS[i]}</td><td class="f">${esc(f)}${
+      vs.length ? `<div class="tiny" style="font-weight:400;margin-top:2px">aussi : ${vs.map(esc).join(', ')}</div>` : ''
+    }</td></tr>`;
+  }).join('')
     || '<tr><td class="tiny">Formes manquantes.</td></tr>';
   $('dvstats').innerHTML = `
     <tr><td>Maîtrise</td><td class="f"><span class="m ${m.c}" style="display:inline-block;margin-right:7px"></span>${m.t}</td></tr>
     <tr><td>Réponses</td><td class="f">${e.seen ? `${e.ok} justes · ${e.ko} ratées · ${pct(e)} %` : 'jamais révisé'}</td></tr>
     <tr><td>Prochaine révision</td><td class="f">${e.seen ? humanDue(dueInDays(e)) : 'à la prochaine séance'}</td></tr>
     <tr><td>Difficulté</td><td class="f">Niveau ${lvl(v)}${lvl(v) > unlocked() ? ' <span class="pill g">hors entraînement</span>' : ''}</td></tr>
-    <tr><td>Orthographes acceptées</td><td class="f">${
-      (v.variants || []).length
-        ? v.variants.map(o => `<span class="pill g" style="margin:0 4px 4px 0;display:inline-block">${esc(o)}</span>`).join('')
-        : '<span class="tiny">aucune</span>'}</td></tr>
     <tr><td>Traduction</td><td class="f">${v.verified ? '<span class="pill">vérifiée</span>' : '<span class="pill g">non vérifiée</span>'}</td></tr>`;
   $('dvread').style.display = ''; $('dvform').style.display = 'none';
 }
@@ -1110,7 +1147,6 @@ $('dvsave').addEventListener('click', async () => {
     fr: $('dvffr').value.trim(), base: $('dvfbase').value.trim(),
     ar: $('dvfar').value.trim(), pattern: $('dvfpat').value.trim() || 'régulier',
     level: +(document.querySelector('#dvflvl [data-l].pri')?.dataset.l || lvl(v)),
-    variants: parseVariants($('dvfvar').value),
     forms
   };
   if (!patch.fr || !patch.base) return fb.innerHTML = '<div class="fb no">Français et base sont obligatoires.</div>';
@@ -1139,6 +1175,14 @@ function fillForm(){
   const cs = [...new Set(DATA.items.map(i => i.category))].sort();
   fcat.innerHTML = cs.map(c => `<option>${esc(c)}</option>`).join('') + '<option value="__new">+ Nouvelle catégorie…</option>';
 }
+$('fkind').addEventListener('change', function(){
+  const verbe = this.value === 'verb';
+  $('fcatwrap').style.display = verbe ? 'none' : '';
+  $('faskwrap').style.display = verbe ? 'none' : '';
+  $('fnotewrap').style.display = verbe ? 'none' : '';
+  $('fverbnote').style.display = verbe ? '' : 'none';
+  $('flabarz').textContent = verbe ? 'Base du verbe (optionnel)' : 'Arabizi';
+});
 fcat.addEventListener('change', function(){
   const n = $('fcatnew');
   n.style.display = this.value === '__new' ? 'block' : 'none';
@@ -1151,6 +1195,7 @@ $('fask').addEventListener('change', function(){
   if (on) { $('farz').value=''; $('far').value=''; }
 });
 $('fadd').addEventListener('click', async () => {
+  if ($('fkind').value === 'verb') return addVerbe();
   const ask = $('fask').checked;
   const cat = fcat.value === '__new' ? $('fcatnew').value.trim() : fcat.value;
   const fr = $('ffr').value.trim(), arz = $('farz').value.trim();
@@ -1180,6 +1225,28 @@ $('fadd').addEventListener('click', async () => {
   ['ffr','farz','far','fnote'].forEach(i => $(i).value = '');
   $('ffr').focus();
 });
+
+/* Un verbe ne peut pas être ajouté complet depuis l'app : saisir 16 formes
+   justes suppose de savoir conjuguer. On enregistre donc la demande, et la
+   conjugaison est remplie ensuite, comme les traductions en attente. */
+async function addVerbe(){
+  const fr = $('ffr').value.trim(), fb = $('ffb');
+  if (!fr) return fb.innerHTML = '<div class="fb no">Le français est obligatoire.</div>';
+  if (DATA.verbs.some(v => fold(v.fr) === fold(fr)))
+    return fb.innerHTML = `<div class="fb no">Le verbe « ${esc(fr)} » existe déjà.</div>`;
+  const row = { fr, base: $('farz').value.trim(), ar: $('far').value.trim(),
+                status: 'pending', level: 2, verified: false };
+  if (SESSION) {
+    const { data, error } = await sb.from('verbs')
+      .insert({ ...row, created_by: SESSION.user.id, requested_by: SESSION.user.id })
+      .select().single();
+    if (error) return fb.innerHTML = `<div class="fb no">${esc(error.message)}</div>`;
+    DATA.verbs.push(data);
+  } else DATA.verbs.push({ ...row, id: 'local:' + Date.now(), is_seed: false, variants: {} });
+  saveData(); burst('✓'); renderVerbList(); renderHome();
+  fb.innerHTML = `<div class="fb ok">✓ « ${esc(fr)} » enregistré. Sa conjugaison sera complétée avant qu'il n'entre en révision.</div>`;
+  ['ffr','farz','far','fnote'].forEach(i => $(i).value = '');
+}
 
 /* ============================================================
    CONJUGAISON (entraînement libre)
@@ -1212,7 +1279,7 @@ function cscore(){
 function ccheck(){
   if (!cq) return;
   const good = cq.v.forms[cq.t][cq.p];
-  const ok = sameAnswer($('cin').value, good, 'arabizi', cq.v.variants);
+  const ok = sameAnswer($('cin').value, good, 'arabizi', verbVars(cq.v, cq.t, cq.p));
   rec('verb', cq.v.id, ok); cscore();
   if (ok) { burst('✓'); vibrate(14); } else { shake($('cin')); vibrate([12,60,12]); }
   $('cfb').innerHTML = ok ? `<div class="fb ok">✓ <b>${esc(good)}</b></div>`
@@ -1509,6 +1576,26 @@ document.querySelectorAll('#scriptpref [data-script]').forEach(b =>
     if (SESSION) await sb.from('profiles').update({ script_pref: SCRIPT }).eq('id', SESSION.user.id);
   }));
 
+function renderPending(){
+  const mots    = DATA.items.filter(i => i.kind === 'word'     && i.status === 'pending').length;
+  const phrases = DATA.items.filter(i => i.kind === 'sentence' && i.status === 'pending').length;
+  const verbes  = DATA.verbs.filter(v => v.status === 'pending').length;
+  const total   = mots + phrases + verbes;
+  const nonVerif = DATA.items.filter(i => i.status === 'ready' && !i.verified).length
+                 + DATA.verbs.filter(v => v.status === 'ready' && !v.verified).length;
+  $('acpend').innerHTML = `
+    <tr><td>Mots à traduire</td><td class="f">${mots}</td></tr>
+    <tr><td>Phrases à traduire</td><td class="f">${phrases}</td></tr>
+    <tr><td>Verbes à conjuguer</td><td class="f">${verbes}</td></tr>
+    <tr><td><b>Total en attente</b></td><td class="f">${total || 'aucune'}</td></tr>
+    <tr><td>Non vérifiées par un locuteur</td><td class="f">${nonVerif}</td></tr>`;
+  $('acpendgo').disabled = !total;
+}
+$('acpendgo').addEventListener('click', () => {
+  go('vocab');
+  setTimeout(() => { lstat.value = 'pending'; lq.value = ''; lcat.value = '*'; llvl.value = '*'; renderLex(); }, 60);
+});
+
 function renderLevelBox(){
   const n = unlocked();
   const rows = [1,2,3].map(i => {
@@ -1649,7 +1736,7 @@ function renderAccount(){
     <tr><td>Contenu</td><td class="f">${DATA.items.length} items · ${DATA.verbs.length} verbes</td></tr>
     <tr><td>Synchronisation</td><td class="f">${Object.keys(QUEUE).length ? Object.keys(QUEUE).length + ' en attente' : 'à jour'}</td></tr>`
     : '<tr><td colspan="2" class="tiny">Mode local — aucun compte. Le thème et l\'objectif restent sur cet appareil.</td></tr>';
-  applyTheme(THEME); renderGoal(); renderScriptPref(); renderLevelBox();
+  applyTheme(THEME); renderGoal(); renderScriptPref(); renderLevelBox(); renderPending();
   $('acver').textContent = $('ver').textContent;
   ['cshare','acpass','acsave'].forEach(id => { const e = $(id); if (e) e.disabled = !SESSION; });
 }
