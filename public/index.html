@@ -83,6 +83,40 @@
 .lvlsel{border:1px solid var(--line);background:var(--field);color:var(--ink);
   border-radius:7px;padding:2px 4px;font-size:12px;width:auto}
 
+/* ---------- listes cliquables ----------
+   Pas de <table> : sur iPhone une table déborde et crée un défilement
+   horizontal dans la page, on ne sait plus où on est. */
+.lst{display:flex;flex-direction:column}
+.lrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+  background:none;border:none;border-bottom:1px solid var(--line);
+  padding:12px 16px;cursor:pointer;font:inherit;color:inherit}
+.lrow:last-child{border-bottom:none}
+.lrow:active{background:var(--accent-soft)}
+.lrow .m{width:9px;height:9px;border-radius:99px;flex:none;background:var(--line)}
+.m.vert{background:#12a37f} .m.orange{background:#e08c22} .m.rouge{background:#d4553f}
+[data-theme="dark"] .m.vert{background:#3ecfb2}
+[data-theme="dark"] .m.orange{background:#f0b458}
+[data-theme="dark"] .m.rouge{background:#ff8f83}
+.lmain{flex:1;min-width:0}
+.lfr{font-weight:600;font-size:14.5px;line-height:1.3;
+  display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.lcat{font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.4px;flex:none}
+.larz{font-size:13.5px;color:var(--muted);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lnote{font-size:11.5px;color:var(--muted);opacity:.75;margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lchev{color:var(--muted);font-size:19px;flex:none;opacity:.5}
+
+/* ---------- page détaillée d'une carte ---------- */
+.dhero{text-align:center;padding:10px 0 4px}
+.dhero .fr{font-size:21px;font-weight:650;letter-spacing:-.3px}
+.dhero .arz{margin-top:10px}
+.dfield{margin-bottom:12px}
+.dfield label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+.ro{background:transparent;border:none;padding:0;font-size:15px;color:var(--ink);
+  font-weight:500;width:100%}
+
 /* ---------- révision des leçons de grammaire ---------- */
 #lesson{touch-action:pan-y;user-select:none}
 #lesson .card{min-height:min(62vh,520px)}
@@ -99,7 +133,6 @@
 .dots i.seen{background:var(--accent);opacity:.45}
 .lnav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{overscroll-behavior-y:none}
 body{margin:0;background:var(--bg);color:var(--ink);
   font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
   padding-bottom:env(safe-area-inset-bottom)}
@@ -370,7 +403,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 </div>
 
 <p class="tiny" style="text-align:center;margin-top:26px;opacity:.5">
-  DerjApp · version <span id="ver">1.5.0</span> · <span id="vmode">…</span>
+  DerjApp · version <span id="ver">1.6.0</span> · <span id="vmode">…</span>
 </p>
 </div>
 <div class="view" id="v-session">
@@ -457,10 +490,12 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
     <div class="note"><b>Le futur</b> se fait en ajoutant <b>rah</b> devant le présent : <i>rah nroh</i> = je vais aller. <b>La négation</b> encadre le verbe : <b>ma</b> … <b>ch</b> → <i>ma nefhemch</i> = je ne comprends pas.</div>
   </div>
 
-  <div class="card">
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="lst" id="vlist"></div>
+  </div>
+  <div style="display:none">
     <h3 style="margin-top:0">Tableau complet</h3>
-    <div class="row"><select id="cverb"></select><select id="ctense"><option value="present">Présent</option><option value="past">Passé</option></select></div>
-    <table id="ctable"></table>
+    <p class="tiny" style="margin-top:0">Touche un verbe pour voir sa conjugaison complète et le corriger.</p>
   </div>
 
   <div class="card">
@@ -530,10 +565,8 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 
   
 
-  <div class="card" style="padding:6px 0 0">
-    <div style="max-height:60vh;overflow:auto">
-      <table id="ltable"></table>
-    </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="lst" id="llist"></div>
   </div>
 
   
@@ -863,12 +896,103 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
   </div>
 
   <div class="card">
+    <h3 style="margin-top:0">Version</h3>
+    <table><tr><td>Version installée</td><td class="f" id="acver">—</td></tr></table>
+    <div class="row" style="margin-top:10px"><button class="act" id="acupdate">Vérifier les mises à jour</button></div>
+    <div id="acupfb"></div>
+  </div>
+
+  <div class="card">
     <button class="act" id="aclogout">Se déconnecter</button>
   </div>
 </div>
 </div>
 
-<script>window.TITLES ={"session":"Séance du jour","vocab":"Vocabulaire","conj":"Conjugaison","phr":"Phrases","lex":"Lexique","gram":"Grammaire","pron":"Prononciation","stats":"Progression","plan":"Plan de travail","compare":"Classement","add":"Ajouter une carte","account":"Paramètres"};</script>
+<div class="view" id="v-card">
+  <div class="card">
+    <div class="dhero">
+      <div class="fr" id="dcfr">—</div>
+      <div class="arz" id="dcarz"></div>
+      <div class="ar" id="dcar"></div>
+      <button class="spk" id="dcspk">🔊</button>
+    </div>
+  </div>
+  <div class="card" id="dcread">
+    <table id="dcstats"></table>
+    <div class="row" style="margin-top:12px">
+      <button class="act pri" id="dcedit">Modifier</button>
+      <button class="act" id="dcdel" style="display:none">Supprimer</button>
+    </div>
+    <p class="tiny" style="margin-bottom:0">Les corrections sont partagées : elles s'appliquent à tout le monde.</p>
+  </div>
+  <div class="card" id="dcform" style="display:none">
+    <h3 style="margin-top:0">Modifier la carte</h3>
+    <div class="dfield"><label>Catégorie</label><select id="dccat"></select></div>
+    <div class="dfield"><label>Français</label><input type="text" id="dcffr"></div>
+    <div class="dfield"><label>Arabizi</label><input type="text" id="dcfarz"></div>
+    <div class="dfield"><label>Arabe</label><input type="text" id="dcfar" dir="rtl"></div>
+    <div class="dfield"><label>Prononciation</label><input type="text" id="dcfnote"></div>
+    <div class="dfield"><label>Difficulté</label>
+      <div class="row" id="dcflvl" style="gap:6px">
+        <button class="act" data-l="1" style="flex:1">Niveau 1</button>
+        <button class="act" data-l="2" style="flex:1">Niveau 2</button>
+        <button class="act" data-l="3" style="flex:1">Niveau 3</button>
+      </div></div>
+    <label class="row" style="gap:10px;cursor:pointer;align-items:flex-start;margin-top:6px">
+      <input type="checkbox" id="dcfver" style="width:auto;margin-top:3px">
+      <span>Traduction vérifiée par un locuteur<br>
+      <span class="tiny">À cocher seulement si un arabophone l'a confirmée.</span></span>
+    </label>
+    <div class="row" style="margin-top:14px">
+      <button class="act pri" id="dcsave">Enregistrer</button>
+      <button class="act" id="dccancel">Annuler</button>
+    </div>
+    <div id="dcfb"></div>
+  </div>
+</div>
+
+<div class="view" id="v-verb">
+  <div class="card">
+    <div class="dhero">
+      <div class="fr" id="dvfr">—</div>
+      <div class="ar" id="dvar"></div>
+      <div class="tiny" id="dvbase"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="row" style="gap:6px" id="dvtense">
+      <button class="act pri" data-t="present" style="flex:1">Présent</button>
+      <button class="act" data-t="past" style="flex:1">Passé</button>
+    </div>
+    <table id="dvtable"></table>
+  </div>
+  <div class="card" id="dvread">
+    <table id="dvstats"></table>
+    <div class="row" style="margin-top:12px"><button class="act pri" id="dvedit">Modifier</button></div>
+  </div>
+  <div class="card" id="dvform" style="display:none">
+    <h3 style="margin-top:0">Modifier le verbe</h3>
+    <div class="dfield"><label>Français</label><input type="text" id="dvffr"></div>
+    <div class="dfield"><label>Base (arabizi)</label><input type="text" id="dvfbase"></div>
+    <div class="dfield"><label>Arabe</label><input type="text" id="dvfar" dir="rtl"></div>
+    <div class="dfield"><label>Type</label><input type="text" id="dvfpat"></div>
+    <div class="dfield"><label>Difficulté</label>
+      <div class="row" id="dvflvl" style="gap:6px">
+        <button class="act" data-l="1" style="flex:1">Niveau 1</button>
+        <button class="act" data-l="2" style="flex:1">Niveau 2</button>
+        <button class="act" data-l="3" style="flex:1">Niveau 3</button>
+      </div></div>
+    <h3>Les 16 formes</h3>
+    <div id="dvforms"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="act pri" id="dvsave">Enregistrer</button>
+      <button class="act" id="dvcancel">Annuler</button>
+    </div>
+    <div id="dvfb"></div>
+  </div>
+</div>
+
+<script>window.TITLES ={"session":"Séance du jour","vocab":"Vocabulaire","conj":"Conjugaison","phr":"Phrases","lex":"Lexique","gram":"Grammaire","pron":"Prononciation","stats":"Progression","plan":"Plan de travail","compare":"Classement","add":"Ajouter une carte","account":"Paramètres","card":"Détail de la carte","verb":"Détail du verbe"};</script>
 <script src="/seed-data.js"></script>
 <script type="module" src="/app.js"></script>
 </body>

@@ -138,9 +138,16 @@ function currentLevel(){
 }
 const unlocked = () => currentLevel();
 
-const words     = () => DATA.items.filter(i => i.kind === 'word'     && i.status === 'ready' && lvl(i) <= unlocked());
-const sentences = () => DATA.items.filter(i => i.kind === 'sentence' && i.status === 'ready' && lvl(i) <= unlocked());
-const verbs     = () => DATA.verbs.filter(v => v.status === 'ready' && v.forms && lvl(v) <= unlocked());
+/* Consultation : tout est visible, toujours. Rien ne disparaît. */
+const words     = () => DATA.items.filter(i => i.kind === 'word'     && i.status === 'ready');
+const sentences = () => DATA.items.filter(i => i.kind === 'sentence' && i.status === 'ready');
+const verbs     = () => DATA.verbs.filter(v => v.status === 'ready' && v.forms);
+
+/* Entraînement : seul le niveau atteint est proposé. Le niveau ne cache
+   rien dans l'app, il décide seulement de ce sur quoi on te teste. */
+const trWords     = () => words().filter(i => lvl(i) <= unlocked());
+const trSentences = () => sentences().filter(i => lvl(i) <= unlocked());
+const trVerbs     = () => verbs().filter(v => lvl(v) <= unlocked());
 const pending   = () => [...DATA.items.filter(i => i.status === 'pending'),
                          ...DATA.verbs.filter(v => v.status === 'pending')];
 
@@ -399,13 +406,15 @@ function go(id, back = false){
 function onEnter(id){
   if (id === 'home')    renderHome();
   if (id === 'vocab')   vnext();
-  if (id === 'conj')    { fillVerbs(); ctable(); cnew(); cscore(); }
+  if (id === 'conj')    { renderVerbList(); cnew(); cscore(); }
   if (id === 'phr')     { fillScats(); snext(); }
   if (id === 'lex')     renderLex();
   if (id === 'stats')   renderStats();
   if (id === 'compare') renderCompare();
   if (id === 'add')     fillForm();
   if (id === 'account') renderAccount();
+  if (id === 'card')    renderCard();
+  if (id === 'verb')    renderVerb();
   if (id !== 'gram' && $('lesson')) closeLessons();
   if (id === 'session') startSession();
 }
@@ -474,9 +483,9 @@ let SES = null;
 function buildSession(){
   const cap = n => Math.max(1, Math.ceil(n * SR.NEW_SHARE));
   const q = [
-    ...pickMany(words(),     'item', SESSION_SIZE.word,     cap(SESSION_SIZE.word)).map(x => ({ type:'word', x })),
-    ...pickMany(verbs(),     'verb', SESSION_SIZE.verb,     cap(SESSION_SIZE.verb)).map(x => ({ type:'verb', x })),
-    ...pickMany(sentences(), 'item', SESSION_SIZE.sentence, cap(SESSION_SIZE.sentence)).map(x => ({ type:'sentence', x }))
+    ...pickMany(trWords(),     'item', SESSION_SIZE.word,     cap(SESSION_SIZE.word)).map(x => ({ type:'word', x })),
+    ...pickMany(trVerbs(),     'verb', SESSION_SIZE.verb,     cap(SESSION_SIZE.verb)).map(x => ({ type:'verb', x })),
+    ...pickMany(trSentences(), 'item', SESSION_SIZE.sentence, cap(SESSION_SIZE.sentence)).map(x => ({ type:'sentence', x }))
   ];
   return shuffle(q);
 }
@@ -668,7 +677,7 @@ function fillCats(el, allLabel){
   if (keep && [...el.options].some(o => o.value === keep)) el.value = keep;
 }
 function vnext(){
-  const list = words().filter(w => vcat.value === '*' || w.category === vcat.value);
+  const list = trWords().filter(w => vcat.value === '*' || w.category === vcat.value);
   vcur = pick(list, 'item');
   if (!vcur) { $('vfr').textContent = 'Aucune carte dans cette catégorie.'; return; }
   $('vcatlbl').textContent = vcur.category;
@@ -689,7 +698,7 @@ function vreveal(){
   speak(vcur.ar);
 }
 function vprog(){
-  const list = words().filter(w => vcat.value === '*' || w.category === vcat.value);
+  const list = trWords().filter(w => vcat.value === '*' || w.category === vcat.value);
   const done = list.filter(w => get('item', w.id).score >= 3).length;
   $('vstat').textContent = `${done} / ${list.length} maîtrisés`;
   $('vbar').style.width = (list.length ? Math.round(done/list.length*100) : 0) + '%';
@@ -730,49 +739,212 @@ function lfiltered(){
     return true;
   });
 }
+/* ---------------- listes et pages détaillées ---------------- */
+const CAT_ABBR = { 'Salutations':'Salut.', 'Questions':'Quest.', 'Famille':'Fam.',
+  'Verbes':'Verbe', 'Nombres & temps':'Temps', 'Nourriture':'Nourr.',
+  'Voyage':'Voyage', 'Adjectifs':'Adj.', 'Quotidien':'Quot.' };
+const abbr = c => CAT_ABBR[c] || (c.length > 7 ? c.slice(0,6) + '.' : c);
+
+/* couleur de maîtrise : gris jamais vu, rouge fragile, orange en cours, vert acquis */
+function mastery(e){
+  if (!e.seen) return { c:'', t:'jamais vue' };
+  const taux = e.ok / e.seen;
+  if (e.score < 0 || taux < 0.5) return { c:'rouge',  t:'fragile' };
+  if (e.score >= MASTERED)       return { c:'vert',   t:'acquise' };
+  return { c:'orange', t:'en cours' };
+}
+
+function rowHTML(x, type){
+  const e = get(type, x.id), m = mastery(e);
+  const fr = type === 'verb' ? x.fr : x.fr;
+  const sub = type === 'verb' ? x.base : x.arabizi;
+  const note = type === 'verb' ? x.pattern : x.note;
+  const cat = type === 'verb' ? 'Verbe' : abbr(x.category);
+  return `<button class="lrow" data-open="${esc(x.id)}" data-type="${type}">
+    <span class="m ${m.c}" title="${m.t}"></span>
+    <span class="lmain">
+      <span class="lfr">${esc(fr)}<span class="lcat">${esc(cat)}</span></span>
+      <span class="larz">${esc(sub) || '—'}</span>
+      ${note ? `<span class="lnote">${esc(note)}</span>` : ''}
+    </span>
+    <span class="lchev">›</span>
+  </button>`;
+}
+
 function renderLex(){
   const p = pending();
   $('lpending').style.display = p.length ? '' : 'none';
   $('lpendcount').textContent = p.length + (p.length > 1 ? ' cartes' : ' carte');
   const rows = lfiltered();
   $('lcount').textContent = `${rows.length} carte${rows.length>1?'s':''} sur ${DATA.items.length}`;
-  $('ltable').innerHTML =
-    '<tr><th>Catégorie</th><th>Niv.</th><th>Français</th><th>Arabizi</th><th>Statut</th><th>Revue</th><th>✓ / ✗</th><th></th></tr>'
-    + (rows.length ? '' : '<tr><td colspan="8" class="tiny" style="padding:20px;text-align:center">Aucun résultat.</td></tr>')
-    + rows.map(x => {
-      const st = statOf(x), e = st.e;
-      return `<tr>
-        <td class="tiny">${esc(x.category)}${x.is_seed?'':' <span class="pill" style="font-size:10px">perso</span>'}${x.kind==='sentence'?' <span class="pill g" style="font-size:10px">phrase</span>':''}</td>
-        <td><select class="lvlsel" data-lvl="${esc(x.id)}">${[1,2,3].map(n=>
-             `<option value="${n}"${lvl(x)===n?' selected':''}>${n}</option>`).join('')}</select></td>
-        <td>${esc(x.fr)}</td><td class="f">${esc(x.arabizi) || '<span class="tiny">—</span>'}</td>
-        <td><span class="${st.cls}">${st.t}</span></td>
-        <td class="tiny">${x.status === 'pending' ? '—' : e.seen ? humanDue(st.due) : 'maintenant'}</td>
-        <td class="tiny" style="white-space:nowrap">${e.seen
-          ? `<b style="color:var(--ok-ink)">${e.ok}</b>/<b style="color:var(--bad)">${e.ko}</b>` : '—'}</td>
-        <td style="white-space:nowrap">${x.ar?`<button class="spk" data-say="${esc(x.ar)}">🔊</button>`:''}
-          ${x.is_seed?'':`<button class="spk" data-del="${esc(x.id)}">🗑</button>`}</td></tr>`;
-    }).join('');
-  $('ltable').querySelectorAll('[data-say]').forEach(b => b.onclick = () => speak(b.dataset.say));
-  $('ltable').querySelectorAll('[data-del]').forEach(b => b.onclick = () => delItem(b.dataset.del));
-  $('ltable').querySelectorAll('[data-lvl]').forEach(sel => sel.onchange = async () => {
-    const id = sel.dataset.lvl, n = +sel.value;
-    const it = DATA.items.find(i => i.id === id);
-    if (!it) return;
-    it.level = n; saveData(); renderHome();
-    if (SESSION && !String(id).startsWith('seed:') && !String(id).startsWith('local:'))
-      await sb.from('items').update({ level: n }).eq('id', id);
+  $('llist').innerHTML = rows.length
+    ? rows.map(x => rowHTML(x, 'item')).join('')
+    : '<p class="tiny" style="padding:20px;text-align:center">Aucun résultat.</p>';
+  bindRows($('llist'));
+}
+
+function renderVerbList(){
+  const list = DATA.verbs.slice().sort((a,b) => a.fr.localeCompare(b.fr));
+  $('vlist').innerHTML = list.map(v => rowHTML(v, 'verb')).join('');
+  bindRows($('vlist'));
+}
+
+function bindRows(box){
+  box.querySelectorAll('[data-open]').forEach(b => b.onclick = () => {
+    if (b.dataset.type === 'verb') openVerb(b.dataset.open); else openCard(b.dataset.open);
   });
 }
-async function delItem(id){
-  if (!confirm('Supprimer cette carte ?')) return;
+
+/* ---------- carte ---------- */
+let CARD = null;
+function openCard(id){
+  CARD = DATA.items.find(i => i.id === id);
+  if (!CARD) return;
+  go('card');
+}
+function renderCard(){
+  const x = CARD; if (!x) return;
+  const e = get('item', x.id), m = mastery(e);
+  $('dcfr').textContent = x.fr;
+  $('dcarz').textContent = x.arabizi || '—';
+  $('dcar').textContent = x.ar || '';
+  $('dcstats').innerHTML = `
+    <tr><td>Maîtrise</td><td class="f"><span class="m ${m.c}" style="display:inline-block;margin-right:7px"></span>${m.t}</td></tr>
+    <tr><td>Réponses</td><td class="f">${e.seen ? `${e.ok} justes · ${e.ko} ratées · ${pct(e)} %` : 'jamais révisée'}</td></tr>
+    <tr><td>Série en cours</td><td class="f">${Math.max(0, e.score)} d'affilée</td></tr>
+    <tr><td>Prochaine révision</td><td class="f">${e.seen ? humanDue(dueInDays(e)) : 'à la prochaine séance'}</td></tr>
+    <tr><td>Catégorie</td><td class="f">${esc(x.category)}</td></tr>
+    <tr><td>Type</td><td class="f">${x.kind === 'sentence' ? 'phrase' : 'mot'}</td></tr>
+    <tr><td>Difficulté</td><td class="f">Niveau ${lvl(x)}${lvl(x) > unlocked() ? ' <span class="pill g">hors entraînement</span>' : ''}</td></tr>
+    <tr><td>Prononciation</td><td class="f">${esc(x.note) || '—'}</td></tr>
+    <tr><td>Traduction</td><td class="f">${x.verified ? '<span class="pill">vérifiée</span>' : '<span class="pill g">non vérifiée</span>'}</td></tr>
+    <tr><td>Origine</td><td class="f">${x.is_seed ? 'contenu initial' : 'ajoutée par un membre'}</td></tr>`;
+  $('dcdel').style.display = x.is_seed ? 'none' : '';
+  $('dcread').style.display = ''; $('dcform').style.display = 'none';
+}
+$('dcspk').addEventListener('click', () => CARD && speak(CARD.ar));
+
+$('dcedit').addEventListener('click', () => {
+  const x = CARD;
+  fillCats($('dccat'), null); $('dccat').value = x.category;
+  $('dcffr').value = x.fr; $('dcfarz').value = x.arabizi;
+  $('dcfar').value = x.ar; $('dcfnote').value = x.note;
+  $('dcfver').checked = !!x.verified;
+  document.querySelectorAll('#dcflvl [data-l]').forEach(b =>
+    b.classList.toggle('pri', +b.dataset.l === lvl(x)));
+  $('dcread').style.display = 'none'; $('dcform').style.display = '';
+  $('dcfb').innerHTML = '';
+});
+document.querySelectorAll('#dcflvl [data-l]').forEach(b => b.addEventListener('click', () =>
+  document.querySelectorAll('#dcflvl [data-l]').forEach(o => o.classList.toggle('pri', o === b))));
+$('dccancel').addEventListener('click', renderCard);
+
+$('dcsave').addEventListener('click', async () => {
+  const x = CARD, fb = $('dcfb');
+  const patch = {
+    category: $('dccat').value,
+    fr: $('dcffr').value.trim(),
+    arabizi: $('dcfarz').value.trim(),
+    ar: $('dcfar').value.trim(),
+    note: $('dcfnote').value.trim(),
+    verified: $('dcfver').checked,
+    level: +(document.querySelector('#dcflvl [data-l].pri')?.dataset.l || lvl(x))
+  };
+  if (!patch.fr) { shake($('dcffr')); return fb.innerHTML = '<div class="fb no">Le français est obligatoire.</div>'; }
+  if (x.status === 'ready' && !patch.arabizi) { shake($('dcfarz'));
+    return fb.innerHTML = '<div class="fb no">Une carte révisable doit avoir une traduction.</div>'; }
+
+  Object.assign(x, patch); saveData();
+  if (SESSION && !String(x.id).startsWith('seed:') && !String(x.id).startsWith('local:')) {
+    const { error } = await sb.from('items').update(patch).eq('id', x.id);
+    if (error) return fb.innerHTML = `<div class="fb no">${esc(error.message)}</div>`;
+  }
+  burst('✓'); renderCard(); renderLex(); renderHome();
+  fillCats(vcat, 'Toutes les catégories'); fillCats(lcat, 'Toutes les catégories');
+});
+$('dcdel').addEventListener('click', async () => {
+  if (!CARD || CARD.is_seed) return;
+  if (!confirm('Supprimer cette carte pour tout le monde ?')) return;
+  const id = CARD.id;
   DATA.items = DATA.items.filter(i => i.id !== id); saveData();
-  fillCats(vcat,'Toutes les catégories'); fillCats(lcat,'Toutes les catégories'); fillForm();
-  renderLex();
   if (SESSION && !String(id).startsWith('seed:') && !String(id).startsWith('local:'))
     await sb.from('items').delete().eq('id', id);
+  renderLex(); renderHome(); history.back();
+});
+
+/* ---------- verbe ---------- */
+let VERB = null, VTENSE = 'present';
+function openVerb(id){
+  VERB = DATA.verbs.find(v => v.id === id);
+  if (!VERB) return;
+  VTENSE = 'present'; go('verb');
 }
-[lq, lcat, lstat, llvl].forEach(el => el.addEventListener(el === lq ? 'input' : 'change', renderLex));
+function renderVerb(){
+  const v = VERB; if (!v) return;
+  const e = get('verb', v.id), m = mastery(e);
+  $('dvfr').textContent = v.fr;
+  $('dvar').textContent = v.ar || '';
+  $('dvbase').textContent = `${v.base} · ${v.pattern}`;
+  document.querySelectorAll('#dvtense [data-t]').forEach(b =>
+    b.classList.toggle('pri', b.dataset.t === VTENSE));
+  $('dvtable').innerHTML = (v.forms?.[VTENSE] || []).map((f,i) =>
+    `<tr><td>${PERS[i]}</td><td class="f">${esc(f)}</td></tr>`).join('')
+    || '<tr><td class="tiny">Formes manquantes.</td></tr>';
+  $('dvstats').innerHTML = `
+    <tr><td>Maîtrise</td><td class="f"><span class="m ${m.c}" style="display:inline-block;margin-right:7px"></span>${m.t}</td></tr>
+    <tr><td>Réponses</td><td class="f">${e.seen ? `${e.ok} justes · ${e.ko} ratées · ${pct(e)} %` : 'jamais révisé'}</td></tr>
+    <tr><td>Prochaine révision</td><td class="f">${e.seen ? humanDue(dueInDays(e)) : 'à la prochaine séance'}</td></tr>
+    <tr><td>Difficulté</td><td class="f">Niveau ${lvl(v)}${lvl(v) > unlocked() ? ' <span class="pill g">hors entraînement</span>' : ''}</td></tr>
+    <tr><td>Traduction</td><td class="f">${v.verified ? '<span class="pill">vérifiée</span>' : '<span class="pill g">non vérifiée</span>'}</td></tr>`;
+  $('dvread').style.display = ''; $('dvform').style.display = 'none';
+}
+document.querySelectorAll('#dvtense [data-t]').forEach(b => b.addEventListener('click', () => {
+  VTENSE = b.dataset.t; renderVerb();
+}));
+
+$('dvedit').addEventListener('click', () => {
+  const v = VERB;
+  $('dvffr').value = v.fr; $('dvfbase').value = v.base;
+  $('dvfar').value = v.ar; $('dvfpat').value = v.pattern;
+  document.querySelectorAll('#dvflvl [data-l]').forEach(b =>
+    b.classList.toggle('pri', +b.dataset.l === lvl(v)));
+  $('dvforms').innerHTML = ['present','past'].map(t => `
+    <div class="tiny" style="margin-top:10px;font-weight:600">${t === 'present' ? 'Présent' : 'Passé'}</div>
+    ${(v.forms?.[t] || Array(8).fill('')).map((f,i) => `
+      <div class="row" style="gap:8px;margin-top:6px">
+        <span class="tiny" style="width:104px;flex:none">${PERS[i]}</span>
+        <input type="text" data-f="${t}" data-i="${i}" value="${esc(f)}" style="flex:1">
+      </div>`).join('')}`).join('');
+  $('dvread').style.display = 'none'; $('dvform').style.display = '';
+  $('dvfb').innerHTML = '';
+});
+document.querySelectorAll('#dvflvl [data-l]').forEach(b => b.addEventListener('click', () =>
+  document.querySelectorAll('#dvflvl [data-l]').forEach(o => o.classList.toggle('pri', o === b))));
+$('dvcancel').addEventListener('click', renderVerb);
+
+$('dvsave').addEventListener('click', async () => {
+  const v = VERB, fb = $('dvfb');
+  const forms = { present: [], past: [] };
+  $('dvforms').querySelectorAll('[data-f]').forEach(i => forms[i.dataset.f][+i.dataset.i] = i.value.trim());
+  if (forms.present.some(f => !f) || forms.past.some(f => !f))
+    return fb.innerHTML = '<div class="fb no">Les 16 formes doivent être remplies : la base refuse un verbe incomplet.</div>';
+
+  const patch = {
+    fr: $('dvffr').value.trim(), base: $('dvfbase').value.trim(),
+    ar: $('dvfar').value.trim(), pattern: $('dvfpat').value.trim() || 'régulier',
+    level: +(document.querySelector('#dvflvl [data-l].pri')?.dataset.l || lvl(v)),
+    forms
+  };
+  if (!patch.fr || !patch.base) return fb.innerHTML = '<div class="fb no">Français et base sont obligatoires.</div>';
+
+  Object.assign(v, patch); saveData();
+  if (SESSION && !String(v.id).startsWith('seed:')) {
+    const { error } = await sb.from('verbs').update(patch).eq('id', v.id);
+    if (error) return fb.innerHTML = `<div class="fb no">${esc(error.message)}</div>`;
+  }
+  burst('✓'); renderVerb(); renderVerbList();
+});
+
 $('lpendshow').addEventListener('click', () => { lstat.value='pending'; lq.value=''; lcat.value='*'; renderLex(); });
 $('ladd2').addEventListener('click', () => go('add'));
 $('lexport').addEventListener('click', () => {
@@ -835,21 +1007,11 @@ $('fadd').addEventListener('click', async () => {
    CONJUGAISON (entraînement libre)
    ============================================================ */
 const PERS = ['ana (je)','nta (tu, m.)','nti (tu, f.)','houwa (il)','hiya (elle)','hna (nous)','ntouma (vous)','houma (ils)'];
-const cverb = $('cverb'), ctense = $('ctense');
 let cq = null;
 
-function fillVerbs(){ cverb.innerHTML = verbs().map((v,i) => `<option value="${i}">${esc(v.fr)} — ${esc(v.base)}</option>`).join(''); }
-function ctable(){
-  const v = verbs()[+cverb.value];
-  if (!v) return $('ctable').innerHTML = '<tr><td class="tiny">Aucun verbe.</td></tr>';
-  $('ctable').innerHTML = `<tr><th colspan="2">${esc(v.fr)} · <span class="ar" style="font-size:18px">${esc(v.ar)}</span> · <span class="pill g">${esc(v.pattern)}</span></th></tr>`
-    + v.forms[ctense.value].map((x,i) => `<tr><td>${PERS[i]}</td><td class="f">${esc(x)}</td></tr>`).join('');
-}
-cverb.addEventListener('change', ctable);
-ctense.addEventListener('change', ctable);
 
 function cnew(){
-  const v = pick(verbs(), 'verb');
+  const v = pick(trVerbs(), 'verb');
   if (!v) { $('cq').textContent = 'Aucun verbe.'; return; }
   const p = Math.floor(Math.random()*8), t = Math.random() < .5 ? 'present' : 'past';
   cq = { v, p, t };
@@ -893,7 +1055,7 @@ function fillScats(){
 }
 const sword = s => { const w = s.arabizi.split(' '); return w[Math.min(s.cloze_index ?? 0, w.length-1)]; };
 function snext(){
-  const list = sentences().filter(s => scat.value === '*' || s.category === scat.value);
+  const list = trSentences().filter(s => scat.value === '*' || s.category === scat.value);
   scur = pick(list, 'item');
   if (!scur) { $('sfr').textContent = 'Aucune phrase.'; return; }
   const w = scur.arabizi.split(' '), idx = Math.min(scur.cloze_index ?? 0, w.length-1);
@@ -1295,6 +1457,7 @@ function renderAccount(){
     <tr><td>Synchronisation</td><td class="f">${Object.keys(QUEUE).length ? Object.keys(QUEUE).length + ' en attente' : 'à jour'}</td></tr>`
     : '<tr><td colspan="2" class="tiny">Mode local — aucun compte. Le thème et l\'objectif restent sur cet appareil.</td></tr>';
   applyTheme(THEME); renderGoal(); renderScriptPref(); renderLevelBox();
+  $('acver').textContent = $('ver').textContent;
   ['cshare','acpass','acsave'].forEach(id => { const e = $(id); if (e) e.disabled = !SESSION; });
 }
 
@@ -1340,7 +1503,7 @@ $('aclogout').addEventListener('click', async () => {
 function renderAll(){
   fillCats(vcat,'Toutes les catégories');
   fillCats(lcat,'Toutes les catégories');
-  fillForm(); fillVerbs(); fillScats();
+  fillForm(); fillScats(); renderVerbList();
   renderHome();
   if (current === 'lex')   renderLex();
   if (current === 'stats') renderStats();
@@ -1352,5 +1515,39 @@ window.addEventListener('beforeunload', () => { if (SESSION && Object.keys(QUEUE
 
 boot();
 
-if ('serviceWorker' in navigator)
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(()=>{}));
+/* ---------------- mises à jour ----------------
+   iOS garde les PWA en veille : sans vérification explicite, l'app
+   peut rester des jours sur une version périmée sans le signaler. */
+let swReg = null, reloading = false;
+
+async function checkUpdate(){
+  if (!swReg) return 'indisponible';
+  try {
+    await swReg.update();
+    if (swReg.waiting) { swReg.waiting.postMessage({ type: 'SKIP_WAITING' }); return 'nouvelle'; }
+    return 'ajour';
+  } catch { return 'erreur'; }
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading) return; reloading = true; location.reload();
+  });
+  window.addEventListener('load', async () => {
+    try { swReg = await navigator.serviceWorker.register('/sw.js'); } catch {}
+    checkUpdate();
+  });
+  // au retour dans l'app après une mise en veille
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
+}
+
+$('acupdate')?.addEventListener('click', async () => {
+  const fb = $('acupfb');
+  fb.innerHTML = '<div class="fb ok"><span class="spin"></span> Vérification…</div>';
+  const r = await checkUpdate();
+  fb.innerHTML = r === 'nouvelle'
+    ? '<div class="fb ok">Nouvelle version trouvée, rechargement…</div>'
+    : r === 'ajour'
+      ? `<div class="fb ok">✓ Tu es déjà sur la dernière version (${$('ver').textContent}).</div>`
+      : '<div class="fb no">Vérification impossible — pas de réseau ?</div>';
+});

@@ -1,11 +1,15 @@
 /* DerjApp — service worker — coquille applicative en cache, données toujours au réseau.
    La progression vit dans localStorage, donc l'app est pleinement utilisable hors ligne. */
-const CACHE = 'derjapp-v1.5.0';
+const CACHE = 'derjapp-v1.6.0';
 const SHELL = ['/', '/index.html', '/app.js', '/seed-data.js',
                '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+});
+
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
