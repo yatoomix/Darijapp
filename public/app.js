@@ -11,7 +11,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
 });
 
-const SESSION_SIZE = { word: 10, verb: 5, sentence: 5 };
+const SESSION_SIZE = { word: 8, verb: 4, sentence: 4, grammar: 4 };
 
 /* ---------------- état ---------------- */
 const K = { data:'derja.data', prog:'derja.prog', queue:'derja.queue', days:'derja.days',
@@ -150,6 +150,7 @@ const unlocked = () => currentLevel();
 /* Consultation : tout est visible, toujours. Rien ne disparaît. */
 const words     = () => DATA.items.filter(i => i.kind === 'word'     && i.status === 'ready');
 const sentences = () => DATA.items.filter(i => i.kind === 'sentence' && i.status === 'ready');
+const grammar   = () => DATA.items.filter(i => i.kind === 'grammar'  && i.status === 'ready');
 const verbs     = () => DATA.verbs.filter(v => v.status === 'ready' && v.forms);
 
 /* Entraînement : seul le niveau atteint est proposé. Le niveau ne cache
@@ -174,6 +175,7 @@ const TRAIN = {
   words:     () => words().filter(inLevel),
   verbs:     () => verbs().filter(inLevel),
   sentences: () => sentences().filter(inLevel),
+  grammar:   () => grammar().filter(inLevel),
   cats:      () => [...new Set(TRAIN.words().map(w => w.category))].sort(),
   catsPhr:   () => [...new Set(TRAIN.sentences().map(x => x.category))].sort()
 };
@@ -184,7 +186,8 @@ const TRAIN = {
 const TOTAL = {
   words:     c => words().filter(w => c === '*' || w.category === c).length,
   sentences: c => sentences().filter(x => c === '*' || x.category === c).length,
-  verbs:     () => verbs().length
+  verbs:     () => verbs().length,
+  grammar:   () => grammar().length
 };
 const pending   = () => [...DATA.items.filter(i => i.status === 'pending'),
                          ...DATA.verbs.filter(v => v.status === 'pending')];
@@ -602,6 +605,7 @@ function onEnter(id){
   if (id === 'compare') renderCompare();
   if (id === 'add')     fillForm();
   if (id === 'account') renderAccount();
+  if (id === 'gram')    { fillLessons(); gxnext(); }
   if (id === 'card')    renderCard();
   if (id === 'verb')    renderVerb();
   if (id === 'session') startSession();
@@ -664,12 +668,13 @@ function buildSession(){
   const q = [
     ...pickMany(TRAIN.words(),     'item', SESSION_SIZE.word,     cap(SESSION_SIZE.word)).map(x => ({ type:'word', x })),
     ...pickMany(TRAIN.verbs(),     'verb', SESSION_SIZE.verb,     cap(SESSION_SIZE.verb)).map(x => ({ type:'verb', x })),
-    ...pickMany(TRAIN.sentences(), 'item', SESSION_SIZE.sentence, cap(SESSION_SIZE.sentence)).map(x => ({ type:'sentence', x }))
+    ...pickMany(TRAIN.sentences(), 'item', SESSION_SIZE.sentence, cap(SESSION_SIZE.sentence)).map(x => ({ type:'sentence', x })),
+    ...pickMany(TRAIN.grammar(),   'item', SESSION_SIZE.grammar,  cap(SESSION_SIZE.grammar)).map(x => ({ type:'grammar', x }))
   ];
 
   /* Au niveau 1, verbes et phrases sont verrouillés : sans ce complément
      la séance ne ferait que 10 questions au lieu des 20 annoncées. */
-  const vise = SESSION_SIZE.word + SESSION_SIZE.verb + SESSION_SIZE.sentence;
+  const vise = Object.values(SESSION_SIZE).reduce((a,b) => a+b, 0);
   if (q.length < vise) {
     const deja = new Set(q.map(e => e.x.id));
     const rab = pickMany(TRAIN.words().filter(w => !deja.has(w.id)), 'item',
@@ -721,7 +726,8 @@ function sesStep(){
   if (SES.i >= SES.q.length) return sesEnd();
   const { type, x } = SES.q[SES.i];
   $('sescount').textContent = `Question ${SES.i+1} sur ${SES.q.length}`;
-  $('sestype').textContent = type === 'word' ? 'Vocabulaire' : type === 'verb' ? 'Conjugaison' : 'Phrase';
+  $('sestype').textContent = { word:'Vocabulaire', verb:'Conjugaison',
+    sentence:'Phrase', grammar:'Grammaire' }[type] || '';
   $('sesbarfill').style.width = Math.round(SES.i / SES.q.length * 100) + '%';
   $('sesfb').innerHTML = '';
   setSpeak(null);                     // pas d'audio tant que la réponse est cachée
@@ -768,6 +774,31 @@ function sesStep(){
     $('sgo').onclick = check;
     $('sin2').onkeydown = e => { if (e.key === 'Enter') check(); };
     setTimeout(() => $('sin2')?.focus(), 60);
+  }
+
+  if (type === 'grammar') {
+    $('seslbl').innerHTML = `<span class="pill">${esc(x.lesson || 'Grammaire')}</span>`;
+    $('sesq').textContent = x.fr;
+    $('sesbody').innerHTML = `<input type="text" id="sing" placeholder="Ta réponse en arabizi…"
+        autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="row" style="justify-content:center;margin-top:12px">
+        <button class="act pri" id="sgog">Vérifier</button>
+        <button class="act" id="sskipg">Je ne sais pas</button></div>`;
+    const verifier = () => {
+      const ok = sameAnswer($('sing').value, x.arabizi, 'arabizi', x.variants);
+      if (!ok) shake($('sing'));
+      $('sesfb').innerHTML = ok
+        ? `<div class="fb ok">✓ <b>${esc(x.arabizi)}</b>${x.note ? ` — ${esc(x.note)}` : ''}</div>`
+        : `<div class="fb no">✗ La réponse est <b>${esc(x.arabizi)}</b>${x.note ? `<br><span class="tiny">${esc(x.note)}</span>` : ''}</div>`;
+      setSpeak(x.ar);
+      if (ok) return sesAnswer(true, 'item', x.id, x.fr, x.arabizi, 550);
+      offerVariant(x, 'items', $('sing').value,
+        bon => sesAnswer(bon, 'item', x.id, x.fr, x.arabizi, 180));
+    };
+    $('sgog').onclick = verifier;
+    $('sskipg').onclick = () => { $('sing').value = ''; verifier(); };
+    $('sing').onkeydown = e => { if (e.key === 'Enter') verifier(); };
+    setTimeout(() => $('sing')?.focus(), 60);
   }
 
   if (type === 'sentence') {
@@ -1058,7 +1089,8 @@ function renderCard(){
     <tr><td>Série en cours</td><td class="f">${Math.max(0, e.score)} d'affilée</td></tr>
     <tr><td>Prochaine révision</td><td class="f">${e.seen ? humanDue(dueInDays(e)) : 'à la prochaine séance'}</td></tr>
     <tr><td>Catégorie</td><td class="f">${esc(x.category)}</td></tr>
-    <tr><td>Type</td><td class="f">${x.kind === 'sentence' ? 'phrase' : 'mot'}</td></tr>
+    <tr><td>Type</td><td class="f">${ {word:'mot', sentence:'phrase', grammar:'exercice de grammaire'}[x.kind] }${
+      x.lesson ? ` · ${esc(x.lesson)}` : ''}</td></tr>
     <tr><td>Difficulté</td><td class="f">Niveau ${lvl(x)}${lvl(x) > unlocked() ? ' <span class="pill g">hors entraînement</span>' : ''}</td></tr>
     <tr><td>Prononciation</td><td class="f">${esc(x.note) || '—'}</td></tr>
     <tr><td>Orthographes acceptées</td><td class="f">${
@@ -1600,6 +1632,49 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowLeft')  prevLesson();
 });
 
+/* ---------------- exercices de grammaire ---------------- */
+const gxsel = $('gxlesson');
+let gxcur = null;
+
+function fillLessons(){
+  const keep = gxsel.value;
+  const cs = [...new Set(TRAIN.grammar().map(x => x.lesson).filter(Boolean))].sort();
+  gxsel.innerHTML = '<option value="*">Toutes les leçons</option>'
+    + cs.map(c => `<option>${esc(c)}</option>`).join('');
+  if (keep && [...gxsel.options].some(o => o.value === keep)) gxsel.value = keep;
+}
+function gxnext(){
+  const list = TRAIN.grammar().filter(x => gxsel.value === '*' || x.lesson === gxsel.value);
+  gxcur = pick(list, 'item');
+  let ok = 0, n = 0;
+  for (const x of TRAIN.grammar()) { const e = get('item', x.id); ok += e.ok; n += e.seen; }
+  $('gxscore').textContent = `${ok} / ${n}`;
+  if (!gxcur) {
+    $('gxlbl').textContent = '';
+    $('gxq').textContent = lockedMsg(TOTAL.grammar(), false) || 'Aucun exercice.';
+    ['gxin','gxok','gxskip'].forEach(i => $(i).style.display = 'none');
+    return;
+  }
+  ['gxin','gxok','gxskip'].forEach(i => $(i).style.display = '');
+  $('gxlbl').textContent = gxcur.lesson || 'Grammaire';
+  $('gxq').textContent = gxcur.fr;
+  $('gxin').value = ''; $('gxfb').innerHTML = '';
+}
+function gxcheck(){
+  if (!gxcur) return;
+  const ok = sameAnswer($('gxin').value, gxcur.arabizi, 'arabizi', gxcur.variants);
+  rec('item', gxcur.id, ok);
+  if (!ok) shake($('gxin'));
+  $('gxfb').innerHTML = ok
+    ? `<div class="fb ok">✓ <b>${esc(gxcur.arabizi)}</b>${gxcur.note ? ` — ${esc(gxcur.note)}` : ''}</div>`
+    : `<div class="fb no">✗ La réponse est <b>${esc(gxcur.arabizi)}</b>${gxcur.note ? `<br><span class="tiny">${esc(gxcur.note)}</span>` : ''}</div>`;
+  setTimeout(gxnext, ok ? 800 : 2200);
+}
+$('gxok').addEventListener('click', gxcheck);
+$('gxskip').addEventListener('click', () => { if (gxcur) { $('gxin').value = ''; gxcheck(); } });
+$('gxin').addEventListener('keydown', e => { if (e.key === 'Enter') gxcheck(); });
+gxsel.addEventListener('change', gxnext);
+
 /* ---------------- paramètres ---------------- */
 document.querySelectorAll('#themetabs [data-theme-set]').forEach(b =>
   b.addEventListener('click', () => setTheme(b.dataset.themeSet)));
@@ -1832,7 +1907,7 @@ $('aclogout').addEventListener('click', async () => {
 function renderAll(){
   fillCats(vcat,'Toutes les catégories');
   fillCats(lcat,'Toutes les catégories');
-  fillForm(); fillScats(); renderVerbList();
+  fillForm(); fillScats(); fillLessons(); renderVerbList();
   renderHome();
   if (current === 'vocab') renderLex();
   if (current === 'stats') renderStats();

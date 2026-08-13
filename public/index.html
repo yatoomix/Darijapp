@@ -417,7 +417,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 </div>
 
 <p class="tiny" style="text-align:center;margin-top:26px;opacity:.5">
-  DerjApp · version <span id="ver">1.12.0</span> · <span id="vmode">…</span>
+  DerjApp · version <span id="ver">1.13.1</span> · <span id="vmode">…</span>
 </p>
 </div>
 <div class="view" id="v-session">
@@ -674,6 +674,19 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
     <button class="act pri" id="gramstart">Commencer</button>
   </div>
 </div>
+<div class="card drill">
+  <div class="dh"><b>📐 Exercices</b><span class="pill" id="gxscore">—</span></div>
+  <p class="tiny" style="margin-top:0">Ils apparaissent aussi dans la séance du jour. Ici, tu peux t'entraîner sur une règle précise.</p>
+  <select id="gxlesson" style="margin-bottom:10px"></select>
+  <div class="tiny" id="gxlbl">—</div>
+  <div style="font-size:19px;font-weight:600;margin:8px 0 14px" id="gxq">—</div>
+  <input type="text" id="gxin" placeholder="Ta réponse en arabizi…" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <div class="row" style="margin-top:10px">
+    <button class="act pri" id="gxok">Vérifier</button>
+    <button class="act" id="gxskip">Voir la réponse</button>
+  </div>
+  <div id="gxfb"></div>
+</div>
 <div id="lesson" style="display:none">
   <div class="tiny" id="lsncount" style="text-align:center;margin-bottom:8px"></div>
   <div id="lbody"></div>
@@ -773,6 +786,71 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
     </table>
     <p class="tiny">Négatif : <b>ma</b> + présent 2ᵉ pers. + <b>ch</b> → <i>ma tchoufch</i> = ne regarde pas.</p>
   </div></div>
+<div class="card">
+    <h3 style="margin-top:0">9. Le futur</h3>
+    <p>On place <b>rah</b> devant le présent. Le verbe ne change pas.</p>
+    <ul>
+      <li><i>nemchi</i> je pars → <b>rah</b> nemchi — je vais partir</li>
+      <li><i>nakoul</i> je mange → <b>rah</b> nakoul — je vais manger</li>
+      <li><i>yji</i> il vient → <b>rah</b> yji — il va venir</li>
+    </ul>
+    <p class="tiny">Ne confonds pas avec <i>rah</i> « il est allé », passé du verbe aller : le contexte tranche toujours.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">10. Les pronoms compléments</h3>
+    <p>Ils se collent à la fin du verbe, là où le français les place devant.</p>
+    <table>
+      <tr><td class="f">-ni</td><td>moi</td><td class="f">3ti<b>ni</b></td><td>donne-<b>moi</b></td></tr>
+      <tr><td class="f">-ek</td><td>te</td><td class="f">nhebb<b>ek</b></td><td>je <b>t</b>'aime</td></tr>
+      <tr><td class="f">-ou</td><td>le</td><td class="f">chouf<b>ou</b></td><td>regarde-<b>le</b></td></tr>
+      <tr><td class="f">-ha</td><td>la</td><td class="f">chouf<b>ha</b></td><td>regarde-<b>la</b></td></tr>
+      <tr><td class="f">-na</td><td>nous</td><td class="f">3awen<b>na</b></td><td>aide-<b>nous</b></td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">11. Les démonstratifs</h3>
+    <table>
+      <tr><td class="f">hada</td><td class="ar" style="font-size:20px">هذا</td><td>celui-ci, ce (masculin)</td></tr>
+      <tr><td class="f">hadi</td><td class="ar" style="font-size:20px">هذي</td><td>celle-ci, cette</td></tr>
+      <tr><td class="f">hadou</td><td class="ar" style="font-size:20px">هذو</td><td>ceux-ci, ces</td></tr>
+      <tr><td class="f">hadak</td><td class="ar" style="font-size:20px">هذاك</td><td>celui-là</td></tr>
+    </table>
+    <p class="tiny">Ex : <i>hada bnin</i> — c'est bon. <i>nakhod hadak</i> — je prends celui-là.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">12. Le participe : une action en cours</h3>
+    <p>Là où le français dit « je suis en train de », la derja emploie souvent un participe, sans verbe.</p>
+    <ul>
+      <li><i>baba <b>raqed</b></i> — papa dort (littéralement « papa dormant »)</li>
+      <li><i>rani <b>rayeh</b></i> — je suis en train d'aller</li>
+      <li><i>drari <b>raqdin</b></i> — les enfants dorment (pluriel en -in)</li>
+    </ul>
+    <p class="tiny">Le participe s'accorde : <i>rayeh</i> / <i>rayha</i> / <i>rayhin</i>.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">13. Il faut, je peux, je veux</h3>
+    <p>Ces trois verbes sont suivis d'un second verbe qui <b>reste au présent</b>, sans « de » ni « à ».</p>
+    <ul>
+      <li><i><b>lazem</b> nemchi</i> — il faut que je parte</li>
+      <li><i><b>neqder</b> nji</i> — je peux venir</li>
+      <li><i><b>nheb</b> nerqod</i> — je veux dormir</li>
+    </ul>
+    <p class="tiny">À la forme négative : <i>ma neqderch nji</i> — je ne peux pas venir.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">14. Encore, déjà, pas encore</h3>
+    <ul>
+      <li><b>mazal</b> — pas encore, toujours pas : <i>mazal ma na3refch</i></li>
+      <li><b>tani</b> — encore, de nouveau, aussi : <i>ana tani</i> — moi aussi</li>
+      <li><b>dima</b> — toujours · <b>marra marra</b> — parfois</li>
+      <li><b>rahi</b> — ça y est, c'est fait</li>
+    </ul>
+  </div>
 </div>
 <div class="view" id="v-pron"><div class="card">
     <h3 style="margin-top:0">Les 6 sons qui n'existent pas en français</h3>

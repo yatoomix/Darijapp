@@ -30,7 +30,7 @@ for (const nom of EXERCICES) {
   if (b === null) { t(`${nom} existe`, false, 'fonction introuvable'); continue; }
   const fautes = b.split('\n')
     .map((l, i) => ({ l: l.trim(), i: i + 1 }))
-    .filter(({ l }) => /(?<!TRAIN\.)(?<!TOTAL\.)\b(words|verbs|sentences)\(\)/.test(l))
+    .filter(({ l }) => /(?<!TRAIN\.)(?<!TOTAL\.)\b(words|verbs|sentences|grammar)\(\)/.test(l))
     // seule porte de sortie : TOTAL.*, pour annoncer ce qui reste à débloquer
     .filter(({ l }) => !l.includes('lockedMsg') && !l.includes('TOTAL.'));
   t(`${nom} n'utilise que TRAIN.*`, fautes.length === 0,
