@@ -164,9 +164,27 @@ function lockedMsg(total, dispo){
   return `🔒 Continue de t'entraîner pour débloquer ça — ${d.ok} / ${cible} cartes du niveau ${n} maîtrisées.`;
 }
 
-const trWords     = () => words().filter(i => lvl(i) <= unlocked());
-const trSentences = () => sentences().filter(i => lvl(i) <= unlocked());
-const trVerbs     = () => verbs().filter(v => lvl(v) <= unlocked());
+/* TOUT ce qui sert à s'entraîner passe par TRAIN, et rien d'autre.
+   Le filtre de niveau était dispersé dans chaque exercice et chaque
+   compteur : il finissait toujours par en manquer un. Un test vérifie
+   maintenant qu'aucun exercice n'appelle les listes complètes. */
+const inLevel = x => lvl(x) <= unlocked();
+const TRAIN = {
+  words:     () => words().filter(inLevel),
+  verbs:     () => verbs().filter(inLevel),
+  sentences: () => sentences().filter(inLevel),
+  cats:      () => [...new Set(TRAIN.words().map(w => w.category))].sort(),
+  catsPhr:   () => [...new Set(TRAIN.sentences().map(x => x.category))].sort()
+};
+
+/* Seul endroit autorisé à lire les listes complètes depuis un exercice :
+   savoir combien de contenu existe au total, pour dire à l'utilisateur
+   ce qu'il lui reste à débloquer. */
+const TOTAL = {
+  words:     c => words().filter(w => c === '*' || w.category === c).length,
+  sentences: c => sentences().filter(x => c === '*' || x.category === c).length,
+  verbs:     () => verbs().length
+};
 const pending   = () => [...DATA.items.filter(i => i.status === 'pending'),
                          ...DATA.verbs.filter(v => v.status === 'pending')];
 
@@ -280,22 +298,30 @@ async function addVariant(obj, table, texte){
 }
 
 /* Propose le bouton dans le retour d'erreur et laisse le temps de cliquer. */
-function offerVariant(obj, table, saisi, valider, delaiSiIgnore){
-  const txt = String(saisi || '').trim();
-  if (!txt) return valider(false);
+/* Pas de minuteur : une attente qu'on ne contrôle pas donne l'impression
+   que l'app a figé. On avance quand on a fini de lire. */
+function suiteApresErreur(html, onVariant, valider){
   $('sesfb').insertAdjacentHTML('beforeend',
-    `<div class="row" style="margin-top:10px">
-       <button class="act" id="varbtn" style="font-size:13px">✍️ C'est une autre orthographe correcte</button>
+    `<div class="row" style="margin-top:12px">
+       <button class="act pri" id="nextbtn">Continuer →</button>
+       ${html}
      </div>`);
   let fait = false;
-  const minuteur = setTimeout(() => { if (!fait) { fait = true; valider(false); } }, delaiSiIgnore);
-  $('varbtn').onclick = async () => {
-    if (fait) return; fait = true; clearTimeout(minuteur);
-    await addVariant(obj, table, txt);
-    burst('✓'); vibrate(14);
-    $('sesfb').innerHTML = `<div class="fb ok">✓ « ${esc(txt)} » ajoutée aux orthographes acceptées.</div>`;
-    setTimeout(() => valider(true), 900);
+  $('nextbtn').onclick = () => { if (!fait) { fait = true; valider(false); } };
+  const vb = $('varbtn');
+  if (vb) vb.onclick = async () => {
+    if (fait) return; fait = true;
+    await onVariant();
+    vibrate(14);
+    $('sesfb').innerHTML = '<div class="fb ok">✓ Orthographe ajoutée.</div>';
+    setTimeout(() => valider(true), 500);
   };
+}
+const btnVariant = '<button class="act" id="varbtn" style="font-size:13px">✍️ Autre orthographe correcte</button>';
+
+function offerVariant(obj, table, saisi, valider){
+  const txt = String(saisi || '').trim();
+  suiteApresErreur(txt ? btnVariant : '', () => addVariant(obj, table, txt), valider);
 }
 
 const verbVars = (v, tense, i) => (v.variants && v.variants[tense] && v.variants[tense][i]) || [];
@@ -317,22 +343,9 @@ async function addVerbVariant(v, tense, i, texte){
   }
   return true;
 }
-function offerVerbVariant(v, tense, i, saisi, valider, delai){
+function offerVerbVariant(v, tense, i, saisi, valider){
   const txt = String(saisi || '').trim();
-  if (!txt) return valider(false);
-  $('sesfb').insertAdjacentHTML('beforeend',
-    `<div class="row" style="margin-top:10px">
-       <button class="act" id="varbtn" style="font-size:13px">✍️ C'est une autre orthographe correcte</button>
-     </div>`);
-  let fait = false;
-  const m = setTimeout(() => { if (!fait) { fait = true; valider(false); } }, delai);
-  $('varbtn').onclick = async () => {
-    if (fait) return; fait = true; clearTimeout(m);
-    await addVerbVariant(v, tense, i, txt);
-    burst('✓'); vibrate(14);
-    $('sesfb').innerHTML = `<div class="fb ok">✓ « ${esc(txt)} » acceptée pour cette forme.</div>`;
-    setTimeout(() => valider(true), 900);
-  };
+  suiteApresErreur(txt ? btnVariant : '', () => addVerbVariant(v, tense, i, txt), valider);
 }
 
 const parseVariants = t => String(t || '')
@@ -540,25 +553,45 @@ async function pull(){
 
 function setSync(s){ syncState = s; renderWho(); }
 
-/* ---------------- routeur ---------------- */
+/* ---------------- routeur ----------------
+   La pile est la référence, pas l'URL. Reconstruire la vue depuis
+   location.hash se désynchronisait dès que le geste de retour d'iOS
+   arrivait après un clic : on retombait sur la page précédente. */
 let current = 'home';
 let booted = false;
-function go(id, back = false){
+let STACK = ['home'];
+
+function paint(id){
   const v = $('v-' + id);
-  if (!v) return;
-  document.querySelectorAll('.view').forEach(x => x.classList.remove('on','back'));
-  v.classList.add('on'); if (back) v.classList.add('back');
+  if (!v) return false;
+  document.querySelectorAll('.view').forEach(x => x.classList.remove('on'));
+  v.classList.add('on');
   $('hdr').classList.toggle('show', id !== 'home');
   $('htitle').textContent = window.TITLES[id] || '';
   current = id;
   closeKeypad();
-  window.scrollTo(0,0);
-  // la première navigation remplace l'entrée courante : sinon le bouton retour
-  // du téléphone quitterait l'app au lieu de revenir à l'accueil
-  if (!booted) { history.replaceState({ id }, '', '#' + id); booted = true; }
-  else if (location.hash !== '#' + id) history.pushState({ id }, '', '#' + id);
+  window.scrollTo(0, 0);
   onEnter(id);
+  return true;
 }
+
+function go(id, remplace){
+  if (!$('v-' + id)) return;
+  if (remplace || !booted) STACK[STACK.length - 1] = id;
+  else STACK.push(id);
+  paint(id);
+  const etat = { i: STACK.length - 1, id };
+  if (remplace || !booted) { history.replaceState(etat, '', '#' + id); booted = true; }
+  else history.pushState(etat, '', '#' + id);
+}
+
+window.addEventListener('popstate', e => {
+  const i = (e.state && typeof e.state.i === 'number') ? e.state.i : 0;
+  STACK = STACK.slice(0, i + 1);
+  const id = (e.state && e.state.id) || STACK[i] || 'home';
+  if (!paint(id)) { STACK = ['home']; paint('home'); }
+});
+
 function onEnter(id){
   if (id === 'home')    renderHome();
   if (id === 'vocab')   { vnext(); renderLex(); }
@@ -570,20 +603,10 @@ function onEnter(id){
   if (id === 'account') renderAccount();
   if (id === 'card')    renderCard();
   if (id === 'verb')    renderVerb();
-  if (id !== 'gram' && $('lesson')) closeLessons();
   if (id === 'session') startSession();
+  if (id !== 'gram' && $('lesson')) closeLessons();
 }
 $('back').addEventListener('click', () => history.back());
-window.addEventListener('popstate', e => {
-  const id = (e.state && e.state.id) || (location.hash || '#home').slice(1) || 'home';
-  const v = $('v-' + id);
-  if (!v) return;
-  document.querySelectorAll('.view').forEach(x => x.classList.remove('on','back'));
-  v.classList.add('on','back');
-  $('hdr').classList.toggle('show', id !== 'home');
-  $('htitle').textContent = window.TITLES[id] || '';
-  current = id; onEnter(id);
-});
 document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
 
 /* ---------------- accueil ---------------- */
@@ -638,9 +661,9 @@ let SES = null;
 function buildSession(){
   const cap = n => Math.max(1, Math.ceil(n * SR.NEW_SHARE));
   const q = [
-    ...pickMany(trWords(),     'item', SESSION_SIZE.word,     cap(SESSION_SIZE.word)).map(x => ({ type:'word', x })),
-    ...pickMany(trVerbs(),     'verb', SESSION_SIZE.verb,     cap(SESSION_SIZE.verb)).map(x => ({ type:'verb', x })),
-    ...pickMany(trSentences(), 'item', SESSION_SIZE.sentence, cap(SESSION_SIZE.sentence)).map(x => ({ type:'sentence', x }))
+    ...pickMany(TRAIN.words(),     'item', SESSION_SIZE.word,     cap(SESSION_SIZE.word)).map(x => ({ type:'word', x })),
+    ...pickMany(TRAIN.verbs(),     'verb', SESSION_SIZE.verb,     cap(SESSION_SIZE.verb)).map(x => ({ type:'verb', x })),
+    ...pickMany(TRAIN.sentences(), 'item', SESSION_SIZE.sentence, cap(SESSION_SIZE.sentence)).map(x => ({ type:'sentence', x }))
   ];
 
   /* Au niveau 1, verbes et phrases sont verrouillés : sans ce complément
@@ -648,7 +671,7 @@ function buildSession(){
   const vise = SESSION_SIZE.word + SESSION_SIZE.verb + SESSION_SIZE.sentence;
   if (q.length < vise) {
     const deja = new Set(q.map(e => e.x.id));
-    const rab = pickMany(trWords().filter(w => !deja.has(w.id)), 'item',
+    const rab = pickMany(TRAIN.words().filter(w => !deja.has(w.id)), 'item',
                          vise - q.length, cap(vise - q.length));
     q.push(...rab.map(x => ({ type:'word', x })));
   }
@@ -700,7 +723,7 @@ function sesStep(){
   $('sestype').textContent = type === 'word' ? 'Vocabulaire' : type === 'verb' ? 'Conjugaison' : 'Phrase';
   $('sesbarfill').style.width = Math.round(SES.i / SES.q.length * 100) + '%';
   $('sesfb').innerHTML = '';
-  setSpeak(type === 'verb' ? x.ar : x.ar);
+  setSpeak(null);                     // pas d'audio tant que la réponse est cachée
 
   if (type === 'word') {
     $('seslbl').textContent = x.category;
@@ -717,9 +740,10 @@ function sesStep(){
         ${x.note ? `<div class="tiny" style="margin-top:6px">${esc(x.note)}</div>` : ''}
         <div class="row" style="justify-content:center;margin-top:18px">
           <button class="act bad" id="sno">Raté</button><button class="act good" id="syes">Je savais</button></div>`;
-      speak(x.ar);
-      $('sno').onclick  = () => sesAnswer(false, 'item', x.id, x.fr, x.arabizi);
-      $('syes').onclick = () => sesAnswer(true,  'item', x.id, x.fr, x.arabizi);
+      setSpeak(x.ar); speak(x.ar);
+      // la réponse est déjà à l'écran : on enchaîne sans faire patienter
+      $('sno').onclick  = () => sesAnswer(false, 'item', x.id, x.fr, x.arabizi, 180);
+      $('syes').onclick = () => sesAnswer(true,  'item', x.id, x.fr, x.arabizi, 180);
     };
   }
 
@@ -736,9 +760,9 @@ function sesStep(){
       if (!ok) shake($('sin2'));
       $('sesfb').innerHTML = ok ? `<div class="fb ok">✓ <b>${esc(good)}</b></div>`
                                 : `<div class="fb no">✗ C'était <b>${esc(good)}</b></div>`;
-      if (ok) return sesAnswer(true, 'verb', x.id, `${x.fr} · ${PERS[p]}`, good, 700);
+      if (ok) return sesAnswer(true, 'verb', x.id, `${x.fr} · ${PERS[p]}`, good, 500);
       offerVerbVariant(x, t, p, $('sin2').value,
-        bon => sesAnswer(bon, 'verb', x.id, `${x.fr} · ${PERS[p]}`, good, bon ? 300 : 1200), 4200);
+        bon => sesAnswer(bon, 'verb', x.id, `${x.fr} · ${PERS[p]}`, good, 180));
     };
     $('sgo').onclick = check;
     $('sin2').onkeydown = e => { if (e.key === 'Enter') check(); };
@@ -760,9 +784,10 @@ function sesStep(){
         ? `<div class="fb ok">✓ <b>${esc(x.arabizi)}</b></div>`
         : `<div class="fb no">✗ C'était <b>${esc(good)}</b><br><span class="tiny">${esc(x.arabizi)}${x.note ? ' — ' + esc(x.note) : ''}</span></div>`;
       speak(x.ar);
-      if (ok) return sesAnswer(true, 'item', x.id, x.fr, good, 900);
+      if (ok) { setSpeak(x.ar); return sesAnswer(true, 'item', x.id, x.fr, good, 550); }
+      setSpeak(x.ar);
       offerVariant(x, 'items', $('sin3').value,
-        bon => sesAnswer(bon, 'item', x.id, x.fr, good, bon ? 300 : 1200), 4200);
+        bon => sesAnswer(bon, 'item', x.id, x.fr, good, 180));
     };
     $('sgo3').onclick = check;
     $('sin3').onkeydown = e => { if (e.key === 'Enter') check(); };
@@ -810,9 +835,10 @@ function sesTyped(x){
         : `<div class="fb no">✗ C'était <b>${esc(attendu)}</b><br>
              <span class="tiny">${esc(x.arabizi)} — ${esc(x.ar)}</span></div>`;
       speak(x.ar);
-      if (ok) return sesAnswer(true, 'item', x.id, x.fr, attendu, 900);
+      if (ok) { setSpeak(x.ar); return sesAnswer(true, 'item', x.id, x.fr, attendu, 550); }
+      setSpeak(x.ar);
       offerVariant(x, 'items', input.value,
-        bon => sesAnswer(bon, 'item', x.id, x.fr, attendu, bon ? 300 : 1200), 4200);
+        bon => sesAnswer(bon, 'item', x.id, x.fr, attendu, 180));
     };
     $('tgo').onclick = verifier;
     $('tskip').onclick = () => { input.value = ''; verifier(); };
@@ -835,7 +861,7 @@ function sesAnswer(ok, type, id, label, answer, delay){
   if (ok) { SES.ok++; burst('✓'); vibrate(14); }
   else    { SES.miss.push({ label, answer }); vibrate([12,60,12]); }
   SES.i++; saveSes();
-  setTimeout(sesStep, delay ?? (ok ? 550 : 1600));
+  setTimeout(sesStep, delay ?? (ok ? 400 : 600));
 }
 
 function sesEnd(){
@@ -863,13 +889,21 @@ function sesEnd(){
 }
 $('sesquit').addEventListener('click', () => history.back());
 $('dagain').addEventListener('click', () => startSession(true));
-$('dhome').addEventListener('click', () => go('home', true));
+$('dhome').addEventListener('click', () => { STACK = ['home']; go('home', true); });
 
 /* ============================================================
    VOCABULAIRE (entraînement libre)
    ============================================================ */
 let vcur = null;
 const vcat = $('vcat');
+
+/* Le sélecteur des questions ne propose que des catégories jouables. */
+function fillTrainCats(){
+  const keep = vcat.value;
+  vcat.innerHTML = '<option value="*">Toutes les catégories</option>'
+    + TRAIN.cats().map(c => `<option>${esc(c)}</option>`).join('');
+  if (keep && [...vcat.options].some(o => o.value === keep)) vcat.value = keep;
+}
 
 function fillCats(el, allLabel){
   const keep = el.value;
@@ -879,10 +913,10 @@ function fillCats(el, allLabel){
   if (keep && [...el.options].some(o => o.value === keep)) el.value = keep;
 }
 function vnext(){
-  const list = trWords().filter(w => vcat.value === '*' || w.category === vcat.value);
+  const list = TRAIN.words().filter(w => vcat.value === '*' || w.category === vcat.value);
   vcur = pick(list, 'item');
   if (!vcur) {
-    const tot = words().filter(w => vcat.value === '*' || w.category === vcat.value).length;
+    const tot = TOTAL.words(vcat.value);
     $('vcatlbl').textContent = '';
     $('vfr').textContent = lockedMsg(tot, false) || 'Aucune carte dans cette catégorie.';
     $('vback').style.display = 'none'; $('vbtns').innerHTML = '';
@@ -906,7 +940,7 @@ function vreveal(){
   speak(vcur.ar);
 }
 function vprog(){
-  const list = trWords().filter(w => vcat.value === '*' || w.category === vcat.value);
+  const list = TRAIN.words().filter(w => vcat.value === '*' || w.category === vcat.value);
   const done = list.filter(w => get('item', w.id).score >= 3).length;
   $('vstat').textContent = `${done} / ${list.length} maîtrisés`;
   $('vstat2').textContent = `${done} / ${list.length}`;
@@ -1074,7 +1108,7 @@ $('dcsave').addEventListener('click', async () => {
     if (error) return fb.innerHTML = `<div class="fb no">${esc(error.message)}</div>`;
   }
   burst('✓'); renderCard(); renderLex(); renderHome();
-  fillCats(vcat, 'Toutes les catégories'); fillCats(lcat, 'Toutes les catégories');
+  fillTrainCats(); fillCats(lcat, 'Toutes les catégories');
 });
 $('dcdel').addEventListener('click', async () => {
   if (!CARD || CARD.is_seed) return;
@@ -1260,10 +1294,10 @@ let cq = null;
 
 
 function cnew(){
-  const v = pick(trVerbs(), 'verb');
+  const v = pick(TRAIN.verbs(), 'verb');
   if (!v) {
     $('cprompt').textContent = '';
-    $('cq').textContent = lockedMsg(verbs().length, false) || 'Aucun verbe.';
+    $('cq').textContent = lockedMsg(TOTAL.verbs(), false) || 'Aucun verbe.';
     $('cin').style.display = 'none'; $('cok').style.display = 'none'; $('cskip').style.display = 'none';
     return;
   }
@@ -1276,7 +1310,7 @@ function cnew(){
 }
 function cscore(){
   let ok=0, n=0;
-  for (const v of verbs()) { const e = get('verb', v.id); ok += e.ok; n += e.seen; }
+  for (const v of TRAIN.verbs()) { const e = get('verb', v.id); ok += e.ok; n += e.seen; }
   $('cscore').textContent = `${ok} / ${n} correctes` + (n ? ` (${Math.round(ok/n*100)}%)` : '');
   $('cscore2').textContent = `${ok} / ${n}`;
 }
@@ -1305,16 +1339,16 @@ const scat = $('scat');
 let scur = null;
 function fillScats(){
   const keep = scat.value;
-  const cs = [...new Set(sentences().map(s => s.category))].sort();
+  const cs = TRAIN.catsPhr();
   scat.innerHTML = '<option value="*">Toutes les catégories</option>' + cs.map(c => `<option>${esc(c)}</option>`).join('');
   if (keep && [...scat.options].some(o => o.value === keep)) scat.value = keep;
 }
 const sword = s => { const w = s.arabizi.split(' '); return w[Math.min(s.cloze_index ?? 0, w.length-1)]; };
 function snext(){
-  const list = trSentences().filter(s => scat.value === '*' || s.category === scat.value);
+  const list = TRAIN.sentences().filter(s => scat.value === '*' || s.category === scat.value);
   scur = pick(list, 'item');
   if (!scur) {
-    const tot = sentences().filter(x => scat.value === '*' || x.category === scat.value).length;
+    const tot = TOTAL.sentences(scat.value);
     $('sfr').textContent = lockedMsg(tot, false) || 'Aucune phrase.';
     $('scloze').textContent = '';
     $('sin').style.display = 'none'; $('sok').style.display = 'none'; $('sskip').style.display = 'none';
@@ -1325,7 +1359,7 @@ function snext(){
   $('sfr').textContent = scur.fr;
   $('scloze').innerHTML = w.map((x,i) => i===idx ? '<span class="hl">_____</span>' : esc(x)).join(' ');
   $('sin').value=''; $('sfb').innerHTML=''; $('sfull').style.display='none';
-  let ok=0,n=0; for (const s of sentences()) { const e=get('item',s.id); ok+=e.ok; n+=e.seen; }
+  let ok=0,n=0; for (const s of TRAIN.sentences()) { const e=get('item',s.id); ok+=e.ok; n+=e.seen; }
   $('sscore').textContent = `${ok} / ${n} correctes`;
   $('sscore2').textContent = `${ok} / ${n}`;
 }
@@ -1639,8 +1673,9 @@ async function boot(){
   SESSION = data.session;
   if (!SESSION && !LOCAL_ONLY) $('gate').classList.add('show');
   renderWho(); renderAll();
-  const start = (location.hash || '#home').slice(1) || 'home';
-  go($('v-' + start) ? start : 'home');
+  const depart = (location.hash || '#home').slice(1) || 'home';
+  STACK = ['home'];
+  go($('v-' + depart) ? depart : 'home', true);
   loadLessons();
   applyTheme(THEME); renderGoal(); renderScriptPref();
   if (SESSION) { await loadPrefs(); await pull(); await push(); }
