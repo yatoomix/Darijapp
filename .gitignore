@@ -1,0 +1,16 @@
+# secrets — ne JAMAIS versionner
+.env
+.env.local
+*.key
+
+# flux de traduction (contenu de travail)
+pending.json
+filled.json
+
+# dépendances
+node_modules/
+db/node_modules/
+
+# système
+.DS_Store
+Thumbs.db
