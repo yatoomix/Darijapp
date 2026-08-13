@@ -1,6 +1,6 @@
 /* DerjApp — service worker — coquille applicative en cache, données toujours au réseau.
    La progression vit dans localStorage, donc l'app est pleinement utilisable hors ligne. */
-const CACHE = 'derjapp-v1.10.0';
+const CACHE = 'derjapp-v1.10.1';
 const SHELL = ['/', '/index.html', '/app.js', '/seed-data.js',
                '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 

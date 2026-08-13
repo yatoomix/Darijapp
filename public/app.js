@@ -101,15 +101,13 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => {
 });
 
 /* --- animations --- */
-function burst(sym){
-  const b = $('burst');
-  b.textContent = sym; b.classList.remove('go');
-  void b.offsetWidth;                       // relance l'animation
-  b.classList.add('go');
-}
+/* Les retours visuels passent par le message et la couleur du champ.
+   Pas d'animation : elles scintillaient et masquaient l'information. */
+function burst(){ vibrate(12); }
 function shake(el){
   if (!el) return;
-  el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+  el.classList.add('wrong');
+  setTimeout(() => el.classList.remove('wrong'), 1400);
 }
 
 /* ---------------- données ---------------- */
@@ -687,6 +685,13 @@ function startSession(neuve){
   sesStep();
 }
 
+function setSpeak(txt){
+  const b = $('sesspk');
+  if (!b) return;
+  b.style.display = txt ? '' : 'none';
+  b.onclick = () => speak(txt);
+}
+
 function sesStep(){
   closeKeypad();
   if (SES.i >= SES.q.length) return sesEnd();
@@ -695,8 +700,7 @@ function sesStep(){
   $('sestype').textContent = type === 'word' ? 'Vocabulaire' : type === 'verb' ? 'Conjugaison' : 'Phrase';
   $('sesbarfill').style.width = Math.round(SES.i / SES.q.length * 100) + '%';
   $('sesfb').innerHTML = '';
-  const card = document.querySelector('#v-session .sesq');
-  card.classList.remove('pop'); void card.offsetWidth; card.classList.add('pop');
+  setSpeak(type === 'verb' ? x.ar : x.ar);
 
   if (type === 'word') {
     $('seslbl').textContent = x.category;

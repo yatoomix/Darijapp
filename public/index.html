@@ -134,11 +134,8 @@
 #lesson{touch-action:pan-y;user-select:none}
 #lesson .card{min-height:min(62vh,520px)}
 @media (prefers-reduced-motion:no-preference){
-  #lesson.swap .card{animation:lessonIn .28s cubic-bezier(.22,.7,.3,1)}
-  #lesson.swap.rev .card{animation:lessonBack .28s cubic-bezier(.22,.7,.3,1)}
+  #lesson.swap .card{animation:fade .18s ease-out}
 }
-@keyframes lessonIn{from{opacity:0;transform:translateX(34px)}to{opacity:1;transform:none}}
-@keyframes lessonBack{from{opacity:0;transform:translateX(-34px)}to{opacity:1;transform:none}}
 .dots{display:flex;gap:6px;justify-content:center;margin:14px 0 4px;flex-wrap:wrap}
 .dots i{width:7px;height:7px;border-radius:99px;background:var(--line);cursor:pointer;
   transition:transform .2s, background .2s}
@@ -187,11 +184,9 @@ h3{font-size:13px;margin:22px 0 8px;text-transform:uppercase;letter-spacing:.7px
 .view{display:none}
 .view.on{display:block}
 @media (prefers-reduced-motion:no-preference){
-  .view.on{animation:slideIn .26s cubic-bezier(.22,.7,.3,1)}
-  .view.on.back{animation:slideBack .26s cubic-bezier(.22,.7,.3,1)}
+  .view.on{animation:fade .18s ease-out}
 }
-@keyframes slideIn{from{opacity:0;transform:translateX(22px)}to{opacity:1;transform:none}}
-@keyframes slideBack{from{opacity:0;transform:translateX(-22px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
 
 /* ---------- accueil ---------- */
 .hometop{padding:calc(env(safe-area-inset-top) + 22px) 0 18px;display:flex;
@@ -262,19 +257,12 @@ ul{padding-left:20px;margin:8px 0} li{margin:4px 0}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 
-/* ---------- retours de réussite / échec ---------- */
-@media (prefers-reduced-motion:no-preference){
-  .shake{animation:shake .4s}
-  .pop{animation:pop .32s cubic-bezier(.2,1.5,.4,1)}
-}
-@keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}
-  30%,50%,70%{transform:translateX(-7px)}40%,60%{transform:translateX(7px)}}
-@keyframes pop{0%{transform:scale(.85);opacity:0}100%{transform:scale(1);opacity:1}}
-#burst{position:fixed;inset:0;pointer-events:none;z-index:60;display:flex;
-  align-items:center;justify-content:center;font-size:82px;opacity:0}
-@media (prefers-reduced-motion:no-preference){ #burst.go{animation:burst .62s ease-out} }
-@keyframes burst{0%{opacity:0;transform:scale(.5)}25%{opacity:1;transform:scale(1.08)}
-  60%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.15)}}
+/* ---------- retours de réussite / échec ----------
+   Volontairement sobres : un changement de couleur, pas d'animation.
+   Les effets plein écran et les secousses scintillaient et masquaient
+   le message d'erreur au moment où il fallait le lire. */
+.wrong{border-color:var(--bad) !important;background:var(--bad-soft) !important;
+  transition:border-color .15s, background .15s}
 
 /* ---------- séance du jour ---------- */
 #sesbar{position:sticky;top:0;z-index:20;background:var(--bg);padding:10px 0 12px}
@@ -316,7 +304,6 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 </head>
 <body>
 
-<div id="burst"></div>
 
 <div id="gate"><div class="box">
   <h1 style="margin-bottom:4px">DerjApp</h1>
@@ -430,7 +417,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 </div>
 
 <p class="tiny" style="text-align:center;margin-top:26px;opacity:.5">
-  DerjApp · version <span id="ver">1.10.0</span> · <span id="vmode">…</span>
+  DerjApp · version <span id="ver">1.10.1</span> · <span id="vmode">…</span>
 </p>
 </div>
 <div class="view" id="v-session">
@@ -443,7 +430,10 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
     <div class="bar"><i id="sesbarfill"></i></div>
   </div>
   <div class="card sesq">
-    <div class="lbl" id="seslbl">—</div>
+    <div class="row" style="justify-content:center;gap:8px">
+      <span class="lbl" id="seslbl">—</span>
+      <button class="spk" id="sesspk" style="display:none" aria-label="Réécouter">🔊</button>
+    </div>
     <div class="q" id="sesq">—</div>
     <div id="sesbody"></div>
     <div id="sesfb"></div>
