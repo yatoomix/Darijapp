@@ -1433,8 +1433,9 @@ async function renderCompare(){
   $('lb').innerHTML = rows.length ? rows.map((r,i) => `
     <div class="rank ${r.is_me?'me':''}">
       <span class="pos">${medal(i) ? `<span class="medal">${medal(i)}</span>` : i+1}</span>
-      <span class="nm">${esc(r.name)}${r.is_me?' <span class="tiny">(toi)</span>':''}</span>
-      <span class="sc"><b>${r.answers}</b> réponses<br><span class="tiny">${r.accuracy}% · ${r.mastered} maîtrisés</span></span>
+      <span class="nm">${esc(r.name)}${r.is_me?' <span class="tiny">(toi)</span>':''}
+        <span class="tiny" style="display:block">${r.ok} bonnes · ${r.accuracy} % · ${r.mastered} acquises</span></span>
+      <span class="sc"><b style="font-size:17px">${r.score}</b><br><span class="tiny">points</span></span>
     </div>`).join('')
     : '<p class="tiny">Personne n\'a encore révisé. Sois le premier.</p>';
 
