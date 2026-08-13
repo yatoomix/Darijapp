@@ -456,10 +456,9 @@ function go(id, back = false){
 }
 function onEnter(id){
   if (id === 'home')    renderHome();
-  if (id === 'vocab')   vnext();
+  if (id === 'vocab')   { vnext(); renderLex(); }
   if (id === 'conj')    { renderVerbList(); cnew(); cscore(); }
   if (id === 'phr')     { fillScats(); snext(); }
-  if (id === 'lex')     renderLex();
   if (id === 'stats')   renderStats();
   if (id === 'compare') renderCompare();
   if (id === 'add')     fillForm();
@@ -753,6 +752,7 @@ function vprog(){
   const list = trWords().filter(w => vcat.value === '*' || w.category === vcat.value);
   const done = list.filter(w => get('item', w.id).score >= 3).length;
   $('vstat').textContent = `${done} / ${list.length} maîtrisés`;
+  $('vstat2').textContent = `${done} / ${list.length}`;
   $('vbar').style.width = (list.length ? Math.round(done/list.length*100) : 0) + '%';
 }
 $('vspk').addEventListener('click', () => vcur && speak(vcur.ar));
@@ -1075,6 +1075,7 @@ function cscore(){
   let ok=0, n=0;
   for (const v of verbs()) { const e = get('verb', v.id); ok += e.ok; n += e.seen; }
   $('cscore').textContent = `${ok} / ${n} correctes` + (n ? ` (${Math.round(ok/n*100)}%)` : '');
+  $('cscore2').textContent = `${ok} / ${n}`;
 }
 function ccheck(){
   if (!cq) return;
@@ -1116,6 +1117,7 @@ function snext(){
   $('sin').value=''; $('sfb').innerHTML=''; $('sfull').style.display='none';
   let ok=0,n=0; for (const s of sentences()) { const e=get('item',s.id); ok+=e.ok; n+=e.seen; }
   $('sscore').textContent = `${ok} / ${n} correctes`;
+  $('sscore2').textContent = `${ok} / ${n}`;
 }
 function sreveal(ok){
   $('sfb').innerHTML = ok ? `<div class="fb ok">✓ <b>${esc(sword(scur))}</b></div>`
@@ -1557,7 +1559,7 @@ function renderAll(){
   fillCats(lcat,'Toutes les catégories');
   fillForm(); fillScats(); renderVerbList();
   renderHome();
-  if (current === 'lex')   renderLex();
+  if (current === 'vocab') renderLex();
   if (current === 'stats') renderStats();
 }
 
