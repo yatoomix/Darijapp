@@ -263,6 +263,30 @@ function arabicKeypad(input){
   return wrap;
 }
 
+/* Rend le clavier disponible sur n'importe quel champ arabe de l'app —
+   ajout de carte, correction — sans attendre d'atteindre une carte à saisie. */
+function withKeypad(input){
+  if (!input || input.dataset.kp) return;
+  input.dataset.kp = '1';
+  const bar = document.createElement('div');
+  bar.className = 'row'; bar.style.marginTop = '7px';
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'act';
+  btn.style.cssText = 'padding:7px 12px;font-size:12.5px';
+  btn.textContent = '⌨️ Clavier arabe';
+  bar.appendChild(btn);
+  const box = document.createElement('div');
+  box.style.display = 'none';
+  input.after(bar); bar.after(box);
+  btn.onclick = () => {
+    const ouvrir = box.style.display === 'none';
+    if (ouvrir && !box.firstChild) box.appendChild(arabicKeypad(input));
+    box.style.display = ouvrir ? '' : 'none';
+    btn.textContent = ouvrir ? '⌨️ Masquer le clavier' : '⌨️ Clavier arabe';
+    if (ouvrir) box.scrollIntoView({ block:'nearest', behavior:'smooth' });
+  };
+}
+
 // champ de saisie adapté à l'écriture demandée
 function answerField(script){
   const i = document.createElement('input');
@@ -1512,6 +1536,8 @@ function renderAll(){
 window.addEventListener('online',  () => { setSync('idle'); push(); });
 window.addEventListener('offline', () => setSync('error'));
 window.addEventListener('beforeunload', () => { if (SESSION && Object.keys(QUEUE).length) push(); });
+
+['far','dcfar','dvfar'].forEach(id => withKeypad($(id)));
 
 boot();
 
