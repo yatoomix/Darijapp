@@ -46,5 +46,26 @@ go('vocab'); go('card'); back(); go('card');
 t("ouvrir une 2e carte après retour", current, 'card');
 t("pile cohérente", STACK.join('>'), 'home>vocab>card');
 
-console.log(`\n${pass} réussis, ${fail} échoués`);
-process.exit(fail?1:0);
+/* ---- reprise de séance après consultation d'une fiche ---- */
+console.log('\n--- séance : consulter une fiche puis revenir ---');
+let SES = null;
+const q = Array.from({length:20}, (_,i) => ({ type:'word', x:{id:'w'+i} }));
+function startSession(neuve){
+  if (!neuve && SES && SES.i < SES.q.length) return 'reprise-memoire';
+  SES = { q, i:0, ok:0, miss:[] };
+  return 'nouvelle';
+}
+let p2=0, f2=0;
+const u=(n,g,w)=>{const ok=g===w;console.log(`${ok?'✓':'✗'} ${n}${ok?'':`  → ${g}`}`);ok?p2++:f2++;};
+
+u("démarrage", startSession(), 'nouvelle');
+SES.i = 7;                                  // on a répondu à 7 questions
+u("consultation d'une fiche puis retour", startSession(), 'reprise-memoire');
+u("position conservée", SES.i, 7);
+u("bouton « nouvelle séance » repart de zéro", startSession(true), 'nouvelle');
+u("compteur remis à zéro", SES.i, 0);
+SES.i = 20;
+u("séance terminée → une relance crée une nouvelle", startSession(), 'nouvelle');
+
+console.log(`\n${pass + p2} réussis, ${fail + f2} échoués`);
+process.exit((fail + f2) ? 1 : 0);

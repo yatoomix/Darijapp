@@ -705,6 +705,11 @@ function loadSes(){
 }
 
 function startSession(neuve){
+  // retour depuis une fiche : on reprend la question en cours, sans message
+  if (!neuve && SES && SES.i < SES.q.length) {
+    $('sesrun').style.display = ''; $('sesdone').style.display = 'none';
+    return sesStep();
+  }
   const reprise = neuve ? null : loadSes();
   SES = reprise || { q: buildSession(), i: 0, ok: 0, miss: [], startStreak: streak() };
   if (!neuve && reprise) $('sesfb').innerHTML =
@@ -712,6 +717,16 @@ function startSession(neuve){
   $('sesrun').style.display = ''; $('sesdone').style.display = 'none';
   if (!SES.q.length) { $('sesq').textContent = 'Aucun contenu disponible.'; return; }
   sesStep();
+}
+
+/* Ouvre la fiche de l'élément en cours. Le retour reprend la séance
+   exactement où elle en était : la position est enregistrée à chaque
+   question, pas seulement à chaque réponse. */
+function setEye(btn, type, x){
+  const b = $(btn);
+  if (!b) return;
+  b.style.display = x ? '' : 'none';
+  b.onclick = () => { if (type === 'verb') openVerb(x.id); else openCard(x.id); };
 }
 
 function setSpeak(txt){
@@ -725,6 +740,8 @@ function sesStep(){
   closeKeypad();
   if (SES.i >= SES.q.length) return sesEnd();
   const { type, x } = SES.q[SES.i];
+  saveSes();                       // la position est retenue avant même de répondre
+  setEye('seseye', type, null);   // masqué tant que la réponse n'est pas dévoilée
   $('sescount').textContent = `Question ${SES.i+1} sur ${SES.q.length}`;
   $('sestype').textContent = { word:'Vocabulaire', verb:'Conjugaison',
     sentence:'Phrase', grammar:'Grammaire' }[type] || '';
@@ -747,7 +764,7 @@ function sesStep(){
         ${x.note ? `<div class="tiny" style="margin-top:6px">${esc(x.note)}</div>` : ''}
         <div class="row" style="justify-content:center;margin-top:18px">
           <button class="act bad" id="sno">Raté</button><button class="act good" id="syes">Je savais</button></div>`;
-      setSpeak(x.ar); speak(x.ar);
+      setSpeak(x.ar); speak(x.ar); setEye('seseye', 'item', x);
       // la réponse est déjà à l'écran : on enchaîne sans faire patienter
       $('sno').onclick  = () => sesAnswer(false, 'item', x.id, x.fr, x.arabizi, 180);
       $('syes').onclick = () => sesAnswer(true,  'item', x.id, x.fr, x.arabizi, 180);
@@ -767,6 +784,7 @@ function sesStep(){
       if (!ok) shake($('sin2'));
       $('sesfb').innerHTML = ok ? `<div class="fb ok">✓ <b>${esc(good)}</b></div>`
                                 : `<div class="fb no">✗ C'était <b>${esc(good)}</b></div>`;
+      setEye('seseye', 'verb', x);
       if (ok) return sesAnswer(true, 'verb', x.id, `${x.fr} · ${PERS[p]}`, good, 500);
       offerVerbVariant(x, t, p, $('sin2').value,
         bon => sesAnswer(bon, 'verb', x.id, `${x.fr} · ${PERS[p]}`, good, 180));
@@ -790,7 +808,7 @@ function sesStep(){
       $('sesfb').innerHTML = ok
         ? `<div class="fb ok">✓ <b>${esc(x.arabizi)}</b>${x.note ? ` — ${esc(x.note)}` : ''}</div>`
         : `<div class="fb no">✗ La réponse est <b>${esc(x.arabizi)}</b>${x.note ? `<br><span class="tiny">${esc(x.note)}</span>` : ''}</div>`;
-      setSpeak(x.ar);
+      setSpeak(x.ar); setEye('seseye', 'item', x);
       if (ok) return sesAnswer(true, 'item', x.id, x.fr, x.arabizi, 550);
       offerVariant(x, 'items', $('sing').value,
         bon => sesAnswer(bon, 'item', x.id, x.fr, x.arabizi, 180));
@@ -816,8 +834,9 @@ function sesStep(){
         ? `<div class="fb ok">✓ <b>${esc(x.arabizi)}</b></div>`
         : `<div class="fb no">✗ C'était <b>${esc(good)}</b><br><span class="tiny">${esc(x.arabizi)}${x.note ? ' — ' + esc(x.note) : ''}</span></div>`;
       speak(x.ar);
+      setEye('seseye', 'item', x);
       if (ok) { setSpeak(x.ar); return sesAnswer(true, 'item', x.id, x.fr, good, 550); }
-      setSpeak(x.ar);
+      setSpeak(x.ar); setEye('seseye', 'item', x);
       offerVariant(x, 'items', $('sin3').value,
         bon => sesAnswer(bon, 'item', x.id, x.fr, good, 180));
     };
@@ -867,8 +886,9 @@ function sesTyped(x){
         : `<div class="fb no">✗ C'était <b>${esc(attendu)}</b><br>
              <span class="tiny">${esc(x.arabizi)} — ${esc(x.ar)}</span></div>`;
       speak(x.ar);
+      setEye('seseye', 'item', x);
       if (ok) { setSpeak(x.ar); return sesAnswer(true, 'item', x.id, x.fr, attendu, 550); }
-      setSpeak(x.ar);
+      setSpeak(x.ar); setEye('seseye', 'item', x);
       offerVariant(x, 'items', input.value,
         bon => sesAnswer(bon, 'item', x.id, x.fr, attendu, 180));
     };
@@ -959,12 +979,14 @@ function vnext(){
   $('varz').textContent = vcur.arabizi;
   $('var').textContent  = vcur.ar;
   $('vhint').textContent = vcur.note || '';
+  setEye('voeil', 'item', null);   // dévoilé avec la réponse
   $('vback').style.display = 'none';
   $('vbtns').innerHTML = '<button class="act pri" id="vshow">Afficher la réponse</button>';
   $('vshow').onclick = vreveal;
   vprog();
 }
 function vreveal(){
+  setEye('voeil', 'item', vcur);
   $('vback').style.display = 'block';
   $('vbtns').innerHTML = '<button class="act bad" id="vno">À revoir</button><button class="act good" id="vyes">Je savais</button>';
   $('vno').onclick  = () => { rec('item', vcur.id, false); vibrate([12,60,12]); vnext(); };
@@ -1052,9 +1074,25 @@ function renderLex(){
   $('lpendcount').textContent = p.length + (p.length > 1 ? ' cartes' : ' carte');
   const rows = lfiltered();
   $('lcount').textContent = `${rows.length} carte${rows.length>1?'s':''} sur ${DATA.items.length}`;
-  $('llist').innerHTML = rows.length
-    ? rows.map(x => rowHTML(x, 'item')).join('')
-    : '<p class="tiny" style="padding:20px;text-align:center">Aucun résultat.</p>';
+  if (!rows.length) {
+    $('llist').innerHTML = '<p class="tiny" style="padding:20px;text-align:center">Aucun résultat.</p>';
+    return;
+  }
+  // regroupées par palier : on voit d'un coup d'œil ce qui est ouvert
+  const parNiveau = [...rows].sort((a, b) =>
+    lvl(a) - lvl(b) || a.category.localeCompare(b.category) || a.fr.localeCompare(b.fr));
+  const n = unlocked();
+  let courant = null, html = '';
+  for (const x of parNiveau) {
+    if (lvl(x) !== courant) {
+      courant = lvl(x);
+      const nb = parNiveau.filter(y => lvl(y) === courant).length;
+      html += `<div class="lsep">Niveau ${courant} · ${nb} carte${nb>1?'s':''}${
+        courant > n ? ' · pas encore débloqué' : ''}</div>`;
+    }
+    html += rowHTML(x, 'item');
+  }
+  $('llist').innerHTML = html;
   bindRows($('llist'));
 }
 
@@ -1128,7 +1166,7 @@ $('dcsave').addEventListener('click', async () => {
     note: $('dcfnote').value.trim(),
     variants: parseVariants($('dcfvar').value),
     verified: $('dcfver').checked,
-    level: +(document.querySelector('#dcflvl [data-l].pri')?.dataset.l || lvl(x))
+    level: niveauChoisi('dcflvl', lvl(x))
   };
   if (!patch.fr) { shake($('dcffr')); return fb.innerHTML = '<div class="fb no">Le français est obligatoire.</div>'; }
   if (x.status === 'ready' && !patch.arabizi) { shake($('dcfarz'));
@@ -1215,7 +1253,7 @@ $('dvsave').addEventListener('click', async () => {
   const patch = {
     fr: $('dvffr').value.trim(), base: $('dvfbase').value.trim(),
     ar: $('dvfar').value.trim(), pattern: $('dvfpat').value.trim() || 'régulier',
-    level: +(document.querySelector('#dvflvl [data-l].pri')?.dataset.l || lvl(v)),
+    level: niveauChoisi('dvflvl', lvl(v)),
     forms
   };
   if (!patch.fr || !patch.base) return fb.innerHTML = '<div class="fb no">Français et base sont obligatoires.</div>';
@@ -1692,12 +1730,11 @@ document.querySelectorAll('#scriptpref [data-script]').forEach(b =>
 /* Les boutons de niveau sont générés : passer de 3 à 5 paliers ne doit
    pas demander de retoucher le HTML à trois endroits. */
 function boutonsNiveau(id, actuel){
-  const box = $(id);
-  box.innerHTML = Array.from({length:NIVEAUX}, (_,k) => k+1)
-    .map(n => `<button class="act${n===actuel?' pri':''}" data-l="${n}" style="flex:1;min-width:52px">${n}</button>`).join('');
-  box.querySelectorAll('[data-l]').forEach(b => b.onclick = () =>
-    box.querySelectorAll('[data-l]').forEach(o => o.classList.toggle('pri', o === b)));
+  const el = $(id);
+  el.innerHTML = Array.from({length:NIVEAUX}, (_,k) => k+1)
+    .map(n => `<option value="${n}"${n===actuel?' selected':''}>Niveau ${n}</option>`).join('');
 }
+const niveauChoisi = (id, defaut) => +($(id)?.value || defaut);
 
 function renderPending(){
   const mots    = DATA.items.filter(i => i.kind === 'word'     && i.status === 'pending').length;
