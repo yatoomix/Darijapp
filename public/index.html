@@ -417,7 +417,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 </div>
 
 <p class="tiny" style="text-align:center;margin-top:26px;opacity:.5">
-  DerjApp · version <span id="ver">1.11.0</span> · <span id="vmode">…</span>
+  DerjApp · version <span id="ver">1.12.0</span> · <span id="vmode">…</span>
 </p>
 </div>
 <div class="view" id="v-session">
@@ -481,7 +481,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
   </div>
 </div>
 
-<h3>Lexique</h3>
+<h3>Toutes les cartes</h3>
 <div class="card">
     <input type="text" id="lq" placeholder="Rechercher… (français, arabizi, arabe ou catégorie)" autocomplete="off">
     <div class="row" style="margin-top:10px">
@@ -491,6 +491,8 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
         <option value="1">Niveau 1</option>
         <option value="2">Niveau 2</option>
         <option value="3">Niveau 3</option>
+        <option value="4">Niveau 4</option>
+        <option value="5">Niveau 5</option>
       </select>
       <select id="lstat">
         <option value="*">Tous les statuts</option>
@@ -974,11 +976,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
       <div class="tiny" style="margin-top:4px">Séparées par des virgules. Toutes seront acceptées en saisie, en plus de l'arabizi et de l'arabe ci-dessus.</div>
     </div>
     <div class="dfield"><label>Difficulté</label>
-      <div class="row" id="dcflvl" style="gap:6px">
-        <button class="act" data-l="1" style="flex:1">Niveau 1</button>
-        <button class="act" data-l="2" style="flex:1">Niveau 2</button>
-        <button class="act" data-l="3" style="flex:1">Niveau 3</button>
-      </div></div>
+      <div class="row" id="dcflvl" style="gap:6px"></div></div>
     <label class="row" style="gap:10px;cursor:pointer;align-items:flex-start;margin-top:6px">
       <input type="checkbox" id="dcfver" style="width:auto;margin-top:3px">
       <span>Traduction vérifiée par un locuteur<br>
@@ -1019,11 +1017,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
     <div class="dfield"><label>Type</label><input type="text" id="dvfpat"></div>
 
     <div class="dfield"><label>Difficulté</label>
-      <div class="row" id="dvflvl" style="gap:6px">
-        <button class="act" data-l="1" style="flex:1">Niveau 1</button>
-        <button class="act" data-l="2" style="flex:1">Niveau 2</button>
-        <button class="act" data-l="3" style="flex:1">Niveau 3</button>
-      </div></div>
+      <div class="row" id="dvflvl" style="gap:6px"></div></div>
     <h3>Les 16 formes</h3>
     <div id="dvforms"></div>
     <div class="row" style="margin-top:14px">

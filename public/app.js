@@ -118,6 +118,7 @@ function shake(el){
 const UNLOCK = 0.50;   // on ouvre le niveau suivant à 50 % de maîtrise
 const RELOCK = 0.40;   // on ne referme qu'en dessous de 40 % : sans cet écart,
                        // une seule carte ratée ferait osciller le niveau à chaque séance
+const NIVEAUX = 5;     // paliers de progression
 const MASTERED = 3;    // bonnes réponses consécutives
 const TYPED_AT = 4;    // au-delà, la carte passe en saisie manuelle
 
@@ -137,7 +138,7 @@ function levelDone(n){
 
 function currentLevel(){
   let n = 1;
-  while (n < 3) {
+  while (n < NIVEAUX) {
     const seuil = REACHED > n ? RELOCK : UNLOCK;   // hystérésis
     if (levelDone(n).rate >= seuil) n++; else break;
   }
@@ -631,9 +632,9 @@ function renderHome(){
   $('tlex').textContent  = `${DATA.items.length} cartes`;
   const p = pending().length;
   if (p) $('tlex').innerHTML = `${DATA.items.length} cartes · <span class="pill w">${p} à traduire</span>`;
-  const n = unlocked(), d = levelDone(Math.min(n, 3));
-  $('tlevel').innerHTML = n >= 3 && d.rate >= UNLOCK
-    ? `Niveau 3 · tout le contenu est ouvert`
+  const n = unlocked(), d = levelDone(Math.min(n, NIVEAUX));
+  $('tlevel').innerHTML = n >= NIVEAUX && d.rate >= UNLOCK
+    ? `Niveau ${NIVEAUX} · tout le contenu est ouvert`
     : `Niveau ${n} · <b>${d.ok}/${d.total}</b> maîtrisés — ${Math.round(d.rate*100)} %`;
   $('blevel').style.width = Math.round(Math.min(1, d.rate / UNLOCK) * 100) + '%';
   $('tstats').textContent = st ? `${st} j de série` : 'Tes chiffres';
@@ -1077,8 +1078,7 @@ $('dcedit').addEventListener('click', () => {
   $('dcffr').value = x.fr; $('dcfarz').value = x.arabizi;
   $('dcfar').value = x.ar; $('dcfnote').value = x.note;
   $('dcfver').checked = !!x.verified;
-  document.querySelectorAll('#dcflvl [data-l]').forEach(b =>
-    b.classList.toggle('pri', +b.dataset.l === lvl(x)));
+  boutonsNiveau('dcflvl', lvl(x));
   $('dcread').style.display = 'none'; $('dcform').style.display = '';
   $('dcfb').innerHTML = '';
 });
@@ -1158,8 +1158,7 @@ $('dvedit').addEventListener('click', () => {
   const v = VERB;
   $('dvffr').value = v.fr; $('dvfbase').value = v.base;
   $('dvfar').value = v.ar; $('dvfpat').value = v.pattern;
-  document.querySelectorAll('#dvflvl [data-l]').forEach(b =>
-    b.classList.toggle('pri', +b.dataset.l === lvl(v)));
+  boutonsNiveau('dvflvl', lvl(v));
   $('dvforms').innerHTML = ['present','past'].map(t => `
     <div class="tiny" style="margin-top:10px;font-weight:600">${t === 'present' ? 'Présent' : 'Passé'}</div>
     ${(v.forms?.[t] || Array(8).fill('')).map((f,i) => `
@@ -1615,6 +1614,16 @@ document.querySelectorAll('#scriptpref [data-script]').forEach(b =>
     if (SESSION) await sb.from('profiles').update({ script_pref: SCRIPT }).eq('id', SESSION.user.id);
   }));
 
+/* Les boutons de niveau sont générés : passer de 3 à 5 paliers ne doit
+   pas demander de retoucher le HTML à trois endroits. */
+function boutonsNiveau(id, actuel){
+  const box = $(id);
+  box.innerHTML = Array.from({length:NIVEAUX}, (_,k) => k+1)
+    .map(n => `<button class="act${n===actuel?' pri':''}" data-l="${n}" style="flex:1;min-width:52px">${n}</button>`).join('');
+  box.querySelectorAll('[data-l]').forEach(b => b.onclick = () =>
+    box.querySelectorAll('[data-l]').forEach(o => o.classList.toggle('pri', o === b)));
+}
+
 function renderPending(){
   const mots    = DATA.items.filter(i => i.kind === 'word'     && i.status === 'pending').length;
   const phrases = DATA.items.filter(i => i.kind === 'sentence' && i.status === 'pending').length;
@@ -1637,7 +1646,7 @@ $('acpendgo').addEventListener('click', () => {
 
 function renderLevelBox(){
   const n = unlocked();
-  const rows = [1,2,3].map(i => {
+  const rows = Array.from({length:NIVEAUX}, (_,k) => k+1).map(i => {
     const d = levelDone(i);
     const etat = i < n ? 'ouvert' : i === n ? 'en cours' : 'verrouillé';
     return `<tr><td>Niveau ${i}</td>
@@ -1648,8 +1657,8 @@ function renderLevelBox(){
     `<tr><td>Déblocage manuel</td><td colspan="2" class="tiny">${MANUAL_LEVEL > 1 ? 'niveau ' + MANUAL_LEVEL : 'aucun'}</td></tr>`;
 }
 $('lvlforce').addEventListener('click', async () => {
-  if (MANUAL_LEVEL >= 3) return $('lvlfb').innerHTML = '<div class="fb ok">Tout le contenu est déjà ouvert.</div>';
-  MANUAL_LEVEL = Math.min(3, Math.max(MANUAL_LEVEL, unlocked()) + 1);
+  if (MANUAL_LEVEL >= NIVEAUX) return $('lvlfb').innerHTML = '<div class="fb ok">Tout le contenu est déjà ouvert.</div>';
+  MANUAL_LEVEL = Math.min(NIVEAUX, Math.max(MANUAL_LEVEL, unlocked()) + 1);
   ls.set(K.manual, MANUAL_LEVEL);
   renderLevelBox(); renderHome(); renderLex();
   $('lvlfb').innerHTML = `<div class="fb ok">Niveau ${MANUAL_LEVEL} ouvert.</div>`;
