@@ -15,7 +15,8 @@ const SESSION_SIZE = { word: 10, verb: 5, sentence: 5 };
 
 /* ---------------- état ---------------- */
 const K = { data:'derja.data', prog:'derja.prog', queue:'derja.queue', days:'derja.days',
-            mode:'derja.mode', theme:'derja.theme', goal:'derja.goal', seenLessons:'derja.lessons' };
+            mode:'derja.mode', theme:'derja.theme', goal:'derja.goal', seenLessons:'derja.lessons',
+            reached:'derja.reached', manual:'derja.manual', script:'derja.script' };
 const ls = {
   get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
   set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
@@ -31,6 +32,9 @@ let syncState = 'idle';
 let THEME = localStorage.getItem(K.theme) || 'light';   // stocké brut, lu aussi par le script d'amorçage
 let DAILY_GOAL = ls.get(K.goal, 20);
 let SEEN_LESSONS = ls.get(K.seenLessons, []);
+let REACHED = ls.get(K.reached, 1);        // plus haut niveau atteint, pour l'hystérésis
+let MANUAL_LEVEL = ls.get(K.manual, 1);    // déblocage forcé depuis les Paramètres
+let SCRIPT = ls.get(K.script, 'arabizi');  // écriture attendue en saisie manuelle
 
 const saveData  = () => ls.set(K.data, DATA);
 const saveProg  = () => ls.set(K.prog, PROG);
@@ -99,9 +103,44 @@ function shake(el){
 }
 
 /* ---------------- données ---------------- */
-const words     = () => DATA.items.filter(i => i.kind === 'word'     && i.status === 'ready');
-const sentences = () => DATA.items.filter(i => i.kind === 'sentence' && i.status === 'ready');
-const verbs     = () => DATA.verbs.filter(v => v.status === 'ready' && v.forms);
+/* ---------------- niveaux ----------------
+   Le niveau filtre ce qui est éligible ; la répétition espacée
+   ordonne ce qui est urgent. Les deux ne se marchent pas dessus,
+   et un niveau débloqué ne se referme jamais. */
+const UNLOCK = 0.50;   // on ouvre le niveau suivant à 50 % de maîtrise
+const RELOCK = 0.40;   // on ne referme qu'en dessous de 40 % : sans cet écart,
+                       // une seule carte ratée ferait osciller le niveau à chaque séance
+const MASTERED = 3;    // bonnes réponses consécutives
+const TYPED_AT = 4;    // au-delà, la carte passe en saisie manuelle
+
+const lvl = x => (x.level || 1);
+
+// seul le contenu initial sert de jauge : les cartes ajoutées à la main
+// restent visibles mais ne peuvent ni bloquer ni diluer la progression
+function levelDone(n){
+  const items = DATA.items.filter(i => i.status === 'ready' && i.is_seed && lvl(i) === n);
+  const vbs   = DATA.verbs.filter(v => v.status === 'ready' && v.forms && v.is_seed && lvl(v) === n);
+  const total = items.length + vbs.length;
+  if (!total) return { ok: 0, total: 0, rate: 1 };
+  const ok = items.filter(x => get('item', x.id).score >= MASTERED).length
+           + vbs.filter(x => get('verb', x.id).score >= MASTERED).length;
+  return { ok, total, rate: ok / total };
+}
+
+function currentLevel(){
+  let n = 1;
+  while (n < 3) {
+    const seuil = REACHED > n ? RELOCK : UNLOCK;   // hystérésis
+    if (levelDone(n).rate >= seuil) n++; else break;
+  }
+  if (n !== REACHED) { REACHED = n; ls.set(K.reached, n); }
+  return Math.max(n, MANUAL_LEVEL);
+}
+const unlocked = () => currentLevel();
+
+const words     = () => DATA.items.filter(i => i.kind === 'word'     && i.status === 'ready' && lvl(i) <= unlocked());
+const sentences = () => DATA.items.filter(i => i.kind === 'sentence' && i.status === 'ready' && lvl(i) <= unlocked());
+const verbs     = () => DATA.verbs.filter(v => v.status === 'ready' && v.forms && lvl(v) <= unlocked());
 const pending   = () => [...DATA.items.filter(i => i.status === 'pending'),
                          ...DATA.verbs.filter(v => v.status === 'pending')];
 
@@ -122,20 +161,157 @@ function rec(type, id, correct){
   return e;
 }
 
-const weight = e => e.score < 0 ? 4 : (e.seen === 0 ? 3 : (e.score < 3 ? 2 : 1));
+/* ============================================================
+   PLANIFICATION — répétition espacée
+   On ne priorise pas sur la performance passée mais sur la
+   probabilité d'avoir oublié la carte maintenant. Une carte
+   parfaitement sue redevient prioritaire par le simple passage
+   du temps, ce qui évite de ne plus jamais la revoir.
+   ============================================================ */
+const SR = {
+  S0: 1,          // stabilité de départ, en jours
+  M: 2.2,         // multiplicateur par bonne réponse consécutive
+  DMAX: 0.6,      // pénalité maximale liée au taux d'échec
+  SMIN: 0.2,
+  SMAX: 180,
+  DUE: 0.35,      // seuil à partir duquel une carte est « à revoir »
+  FLOOR_DAYS: 80, // au-delà, toute carte remonte quoi qu'il arrive
+  FLOOR_PRIO: 0.45,
+  NEW: 0.35,      // priorité d'une carte jamais vue
+  NEW_SHARE: 0.3  // part maximale de cartes neuves dans une séance
+};
+const DAY = 86400000;
+
+// combien de temps la carte tient en mémoire, en jours
+function stability(e){
+  const n = e.ok + e.ko;
+  const fail = n ? e.ko / n : 0;
+  const s = SR.S0 * Math.pow(SR.M, Math.max(0, e.score - 1)) * (1 - SR.DMAX * fail);
+  return Math.max(SR.SMIN, Math.min(SR.SMAX, s));
+}
+const daysSince = e => e.last ? (Date.now() - e.last) / DAY : Infinity;
+
+// courbe d'oubli, calibrée pour tomber à 90 % quand t atteint la stabilité
+function retention(e){
+  const t = daysSince(e);
+  return isFinite(t) ? 1 / (1 + t / (9 * stability(e))) : 0;
+}
+function priority(e){
+  if (!e.seen) return SR.NEW;
+  let p = 1 - retention(e);
+  if (daysSince(e) > SR.FLOOR_DAYS) p = Math.max(p, SR.FLOOR_PRIO);
+  return p;
+}
+// dans combien de jours la carte redevient-elle prioritaire (pour l'affichage)
+function dueInDays(e){
+  if (!e.seen) return 0;
+  const target = Math.min(9 * stability(e) * SR.DUE / (1 - SR.DUE), SR.FLOOR_DAYS);
+  return Math.max(0, Math.round(target - daysSince(e)));
+}
+
+/* ============================================================
+   SAISIE MANUELLE
+   ============================================================ */
+/* On compare des formes normalisées : sans ça, l'app refuserait
+   une bonne réponse pour une hamza ou une voyelle brève invisible. */
+const normAr = s => (s || '')
+  .replace(/[ً-ْٰـ]/g, '')   // voyelles brèves, shadda, tatweel
+  .replace(/[آأإٱ]/g, 'ا') // آ أ إ ٱ → ا
+  .replace(/ى/g, 'ي')                   // ى → ي
+  .replace(/ة/g, 'ه')                   // ة → ه
+  .replace(/ؤ/g, 'و')                   // ؤ → و
+  .replace(/ئ/g, 'ي')                   // ئ → ي
+  .replace(/[^ء-ي]/g, '');              // ponctuation, espaces, chiffres
+
+const sameAnswer = (saisi, attendu, script) =>
+  script === 'ar' ? normAr(saisi) === normAr(attendu) && normAr(attendu) !== ''
+                  : norm(saisi) === norm(attendu);
+
+/* Clavier arabe intégré : iOS ne permet pas de changer la langue du clavier
+   depuis une page web, et la plupart des gens n'ont pas de clavier arabe
+   installé. On l'affiche sous le champ, jamais par-dessus. */
+const AR_KEYS = [
+  'ا','ب','ت','ث','ج','ح','خ',
+  'د','ذ','ر','ز','س','ش','ص',
+  'ض','ط','ظ','ع','غ','ف','ق',
+  'ك','ل','م','ن','ه','و','ي',
+  'ء','أ','إ','آ','ة','ى','ؤ'
+];
+
+function arabicKeypad(input){
+  const wrap = document.createElement('div');
+  wrap.className = 'keypad';
+  wrap.innerHTML = AR_KEYS.map(k => `<button type="button" class="key" data-k="${k}">${k}</button>`).join('')
+    + '<button type="button" class="key wide" data-k=" ">espace</button>'
+    + '<button type="button" class="key wide" data-del>⌫</button>';
+
+  wrap.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    e.preventDefault();
+    if (b.hasAttribute('data-del')) input.value = input.value.slice(0, -1);
+    else input.value += b.dataset.k;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    vibrate(8);
+  });
+  return wrap;
+}
+
+// champ de saisie adapté à l'écriture demandée
+function answerField(script){
+  const i = document.createElement('input');
+  i.type = 'text'; i.id = 'typed';
+  i.autocomplete = 'off'; i.spellcheck = false;
+  i.setAttribute('autocapitalize', 'off');
+  i.setAttribute('autocorrect', 'off');
+  if (script === 'ar') {
+    i.dir = 'rtl'; i.lang = 'ar';
+    i.placeholder = 'اكتب هنا';
+    i.inputMode = 'none';        // empêche le clavier du système de recouvrir l'écran
+    i.style.fontSize = '24px';
+    i.style.fontFamily = '"Geeza Pro","Noto Naskh Arabic",serif';
+  } else {
+    i.placeholder = 'La traduction en arabizi…';
+  }
+  return i;
+}
+
+// ±15 % : deux séances ne sont jamais identiques, sans casser l'ordre
+const noise = () => 0.85 + Math.random() * 0.3;
+
 function pick(list, type){
   if (!list.length) return null;
-  const pool = [];
-  for (const x of list) { const w = weight(get(type, x.id)); for (let i=0;i<w;i++) pool.push(x); }
-  return pool[Math.floor(Math.random() * pool.length)];
+  let best = null, bestW = -1;
+  for (const x of list) {
+    // le +0.001 garantit qu'on renvoie toujours une carte, même tout juste révisée
+    const w = (priority(get(type, x.id)) + 0.001) * noise();
+    if (w > bestW) { bestW = w; best = x; }
+  }
+  return best;
 }
-// tire n éléments distincts, les plus fragiles d'abord
-function pickMany(list, type, n){
+
+// tire n cartes distinctes, les plus urgentes d'abord, en limitant les nouveautés
+function pickMany(list, type, n, maxNew){
   const scored = list.map(x => {
     const e = get(type, x.id);
-    return { x, prio: (e.score < 0 ? 0 : e.seen === 0 ? 1 : e.score < 3 ? 2 : 3) + Math.random() * .9 };
-  }).sort((a,b) => a.prio - b.prio);
-  return scored.slice(0, n).map(s => s.x);
+    return { x, isNew: !e.seen, p: priority(e) * noise() };
+  }).sort((a, b) => b.p - a.p);
+
+  const out = [];
+  let nouvelles = 0;
+  for (const s of scored) {
+    if (out.length >= n) break;
+    if (s.isNew) {
+      if (maxNew != null && nouvelles >= maxNew) continue;
+      nouvelles++;
+    }
+    out.push(s.x);
+  }
+  // s'il reste de la place (peu de cartes disponibles), on complète
+  if (out.length < n) for (const s of scored) {
+    if (out.length >= n) break;
+    if (!out.includes(s.x)) out.push(s.x);
+  }
+  return out;
 }
 
 function streak(){
@@ -268,6 +444,11 @@ function renderHome(){
   $('tlex').textContent  = `${DATA.items.length} cartes`;
   const p = pending().length;
   if (p) $('tlex').innerHTML = `${DATA.items.length} cartes · <span class="pill w">${p} à traduire</span>`;
+  const n = unlocked(), d = levelDone(Math.min(n, 3));
+  $('tlevel').innerHTML = n >= 3 && d.rate >= UNLOCK
+    ? `Niveau 3 · tout le contenu est ouvert`
+    : `Niveau ${n} · <b>${d.ok}/${d.total}</b> maîtrisés — ${Math.round(d.rate*100)} %`;
+  $('blevel').style.width = Math.round(Math.min(1, d.rate / UNLOCK) * 100) + '%';
   $('tstats').textContent = st ? `${st} j de série` : 'Tes chiffres';
   $('tcompare').textContent = SESSION ? 'Compare-toi aux autres membres.' : 'Nécessite un compte.';
   renderVer();
@@ -291,10 +472,11 @@ function renderWho(){
 let SES = null;
 
 function buildSession(){
+  const cap = n => Math.max(1, Math.ceil(n * SR.NEW_SHARE));
   const q = [
-    ...pickMany(words(), 'item', SESSION_SIZE.word).map(x => ({ type:'word', x })),
-    ...pickMany(verbs(), 'verb', SESSION_SIZE.verb).map(x => ({ type:'verb', x })),
-    ...pickMany(sentences(), 'item', SESSION_SIZE.sentence).map(x => ({ type:'sentence', x }))
+    ...pickMany(words(),     'item', SESSION_SIZE.word,     cap(SESSION_SIZE.word)).map(x => ({ type:'word', x })),
+    ...pickMany(verbs(),     'verb', SESSION_SIZE.verb,     cap(SESSION_SIZE.verb)).map(x => ({ type:'verb', x })),
+    ...pickMany(sentences(), 'item', SESSION_SIZE.sentence, cap(SESSION_SIZE.sentence)).map(x => ({ type:'sentence', x }))
   ];
   return shuffle(q);
 }
@@ -319,6 +501,12 @@ function sesStep(){
   if (type === 'word') {
     $('seslbl').textContent = x.category;
     $('sesq').textContent = x.fr;
+    const e = get('item', x.id);
+
+    // au-delà de 4 bonnes réponses d'affilée, reconnaître ne suffit plus :
+    // on passe à la restitution, qui est un exercice bien plus exigeant
+    if (e.score >= TYPED_AT && (x.arabizi || x.ar)) return sesTyped(x);
+
     $('sesbody').innerHTML = `<button class="act pri" id="sreveal">Afficher la réponse</button>`;
     $('sreveal').onclick = () => {
       $('sesbody').innerHTML = `<div class="arz">${esc(x.arabizi)}</div><div class="ar">${esc(x.ar)}</div>
@@ -375,6 +563,61 @@ function sesStep(){
   }
 
   const sk = $('sskip2'); if (sk) sk.onclick = () => { $('sin2').value = ''; $('sgo').click(); };
+}
+
+/* carte à saisie : on écrit la traduction au lieu de la reconnaître */
+function sesTyped(x){
+  // si la carte n'existe que dans une écriture, on impose celle-là
+  const dispo = SCRIPT === 'ar' ? (x.ar ? 'ar' : 'arabizi') : (x.arabizi ? 'arabizi' : 'ar');
+  $('seslbl').innerHTML = `${esc(x.category)} · <span class="pill">à écrire</span>`;
+
+  const body = $('sesbody');
+  body.innerHTML = `<div class="row" id="scripttabs" style="gap:6px;justify-content:center;margin-bottom:12px">
+      <button class="act${dispo==='arabizi'?' pri':''}" data-sc="arabizi" ${x.arabizi?'':'disabled'}>Arabizi</button>
+      <button class="act${dispo==='ar'?' pri':''}" data-sc="ar" ${x.ar?'':'disabled'}>عربي</button>
+    </div>`;
+
+  const zone = document.createElement('div');
+  body.appendChild(zone);
+
+  function monter(script){
+    zone.innerHTML = '';
+    const input = answerField(script);
+    zone.appendChild(input);
+    if (script === 'ar') zone.appendChild(arabicKeypad(input));
+
+    const actions = document.createElement('div');
+    actions.className = 'row';
+    actions.style.cssText = 'justify-content:center;margin-top:12px';
+    actions.innerHTML = `<button class="act pri" id="tgo">Vérifier</button>
+                         <button class="act" id="tskip">Je ne sais pas</button>`;
+    zone.appendChild(actions);
+
+    const attendu = script === 'ar' ? x.ar : x.arabizi;
+    const verifier = () => {
+      const ok = sameAnswer(input.value, attendu, script);
+      if (!ok) shake(input);
+      $('sesfb').innerHTML = ok
+        ? `<div class="fb ok">✓ <b>${esc(attendu)}</b></div>`
+        : `<div class="fb no">✗ C'était <b>${esc(attendu)}</b><br>
+             <span class="tiny">${esc(x.arabizi)} — ${esc(x.ar)}</span></div>`;
+      speak(x.ar);
+      sesAnswer(ok, 'item', x.id, x.fr, attendu, ok ? 900 : 2600);
+    };
+    $('tgo').onclick = verifier;
+    $('tskip').onclick = () => { input.value = ''; verifier(); };
+    input.onkeydown = ev => { if (ev.key === 'Enter') verifier(); };
+    if (script !== 'ar') setTimeout(() => input.focus(), 60);
+  }
+
+  body.querySelectorAll('#scripttabs [data-sc]').forEach(b => b.onclick = () => {
+    if (b.disabled) return;
+    body.querySelectorAll('#scripttabs [data-sc]').forEach(o => o.classList.toggle('pri', o === b));
+    SCRIPT = b.dataset.sc; ls.set(K.script, SCRIPT);
+    if (SESSION) sb.from('profiles').update({ script_pref: SCRIPT }).eq('id', SESSION.user.id);
+    monter(SCRIPT);
+  });
+  monter(dispo);
 }
 
 function sesAnswer(ok, type, id, label, answer, delay){
@@ -457,21 +700,31 @@ vcat.addEventListener('change', vnext);
 /* ============================================================
    LEXIQUE
    ============================================================ */
-const lq = $('lq'), lcat = $('lcat'), lstat = $('lstat');
+const lq = $('lq'), lcat = $('lcat'), lstat = $('lstat'), llvl = $('llvl');
 
 function statOf(x){
   const e = get('item', x.id);
   if (x.status === 'pending') return { k:'pending', t:'à traduire', cls:'pill w', e };
-  if (e.score >= 3)  return { k:'ok',    t:'maîtrisé',  cls:'pill',   e };
-  if (!e.seen)       return { k:'new',   t:'jamais vu', cls:'pill g', e };
-  return { k:'learn', t: e.score < 0 ? 'à revoir' : 'en cours', cls:'pill g', e };
+  if (!e.seen)                return { k:'new',     t:'jamais vu',  cls:'pill g', e };
+  const due = dueInDays(e);
+  if (due === 0)     return { k:'due',   t:'à revoir', cls:'pill w', e, due };
+  if (e.score >= 3)  return { k:'ok',    t:'maîtrisé', cls:'pill',   e, due };
+  return { k:'learn', t:'en cours', cls:'pill g', e, due };
 }
+const humanDue = d =>
+  d === 0 ? 'maintenant'
+  : d === 1 ? 'demain'
+  : d < 31 ? `dans ${d} j`
+  : d < 365 ? `dans ${Math.round(d/30)} mois`
+  : 'dans plus d\'un an';
 function lfiltered(){
   const q = fold(lq.value);
   return DATA.items.filter(x => {
     if (lcat.value !== '*' && x.category !== lcat.value) return false;
+    if (llvl.value !== '*' && String(lvl(x)) !== llvl.value) return false;
     const st = statOf(x);
     if (lstat.value === 'mine') { if (x.is_seed) return false; }
+    else if (lstat.value === 'learn') { if (st.k !== 'learn' && st.k !== 'due') return false; }
     else if (lstat.value !== '*' && st.k !== lstat.value) return false;
     if (q && !fold([x.category,x.fr,x.arabizi,x.ar,x.note].join(' ')).includes(q)) return false;
     return true;
@@ -484,15 +737,17 @@ function renderLex(){
   const rows = lfiltered();
   $('lcount').textContent = `${rows.length} carte${rows.length>1?'s':''} sur ${DATA.items.length}`;
   $('ltable').innerHTML =
-    '<tr><th>Catégorie</th><th>Français</th><th>Arabizi</th><th>Arabe</th><th>Statut</th><th>✓ / ✗</th><th></th></tr>'
-    + (rows.length ? '' : '<tr><td colspan="7" class="tiny" style="padding:20px;text-align:center">Aucun résultat.</td></tr>')
+    '<tr><th>Catégorie</th><th>Niv.</th><th>Français</th><th>Arabizi</th><th>Statut</th><th>Revue</th><th>✓ / ✗</th><th></th></tr>'
+    + (rows.length ? '' : '<tr><td colspan="8" class="tiny" style="padding:20px;text-align:center">Aucun résultat.</td></tr>')
     + rows.map(x => {
       const st = statOf(x), e = st.e;
       return `<tr>
         <td class="tiny">${esc(x.category)}${x.is_seed?'':' <span class="pill" style="font-size:10px">perso</span>'}${x.kind==='sentence'?' <span class="pill g" style="font-size:10px">phrase</span>':''}</td>
+        <td><select class="lvlsel" data-lvl="${esc(x.id)}">${[1,2,3].map(n=>
+             `<option value="${n}"${lvl(x)===n?' selected':''}>${n}</option>`).join('')}</select></td>
         <td>${esc(x.fr)}</td><td class="f">${esc(x.arabizi) || '<span class="tiny">—</span>'}</td>
-        <td class="ar" style="font-size:19px">${esc(x.ar)}</td>
         <td><span class="${st.cls}">${st.t}</span></td>
+        <td class="tiny">${x.status === 'pending' ? '—' : e.seen ? humanDue(st.due) : 'maintenant'}</td>
         <td class="tiny" style="white-space:nowrap">${e.seen
           ? `<b style="color:var(--ok-ink)">${e.ok}</b>/<b style="color:var(--bad)">${e.ko}</b>` : '—'}</td>
         <td style="white-space:nowrap">${x.ar?`<button class="spk" data-say="${esc(x.ar)}">🔊</button>`:''}
@@ -500,6 +755,14 @@ function renderLex(){
     }).join('');
   $('ltable').querySelectorAll('[data-say]').forEach(b => b.onclick = () => speak(b.dataset.say));
   $('ltable').querySelectorAll('[data-del]').forEach(b => b.onclick = () => delItem(b.dataset.del));
+  $('ltable').querySelectorAll('[data-lvl]').forEach(sel => sel.onchange = async () => {
+    const id = sel.dataset.lvl, n = +sel.value;
+    const it = DATA.items.find(i => i.id === id);
+    if (!it) return;
+    it.level = n; saveData(); renderHome();
+    if (SESSION && !String(id).startsWith('seed:') && !String(id).startsWith('local:'))
+      await sb.from('items').update({ level: n }).eq('id', id);
+  });
 }
 async function delItem(id){
   if (!confirm('Supprimer cette carte ?')) return;
@@ -509,7 +772,7 @@ async function delItem(id){
   if (SESSION && !String(id).startsWith('seed:') && !String(id).startsWith('local:'))
     await sb.from('items').delete().eq('id', id);
 }
-[lq, lcat, lstat].forEach(el => el.addEventListener(el === lq ? 'input' : 'change', renderLex));
+[lq, lcat, lstat, llvl].forEach(el => el.addEventListener(el === lq ? 'input' : 'change', renderLex));
 $('lpendshow').addEventListener('click', () => { lstat.value='pending'; lq.value=''; lcat.value='*'; renderLex(); });
 $('ladd2').addEventListener('click', () => go('add'));
 $('lexport').addEventListener('click', () => {
@@ -881,6 +1144,37 @@ document.addEventListener('keydown', e => {
 document.querySelectorAll('#themetabs [data-theme-set]').forEach(b =>
   b.addEventListener('click', () => setTheme(b.dataset.themeSet)));
 
+function renderScriptPref(){
+  document.querySelectorAll('#scriptpref [data-script]').forEach(b =>
+    b.classList.toggle('pri', b.dataset.script === SCRIPT));
+}
+document.querySelectorAll('#scriptpref [data-script]').forEach(b =>
+  b.addEventListener('click', async () => {
+    SCRIPT = b.dataset.script; ls.set(K.script, SCRIPT); renderScriptPref();
+    if (SESSION) await sb.from('profiles').update({ script_pref: SCRIPT }).eq('id', SESSION.user.id);
+  }));
+
+function renderLevelBox(){
+  const n = unlocked();
+  const rows = [1,2,3].map(i => {
+    const d = levelDone(i);
+    const etat = i < n ? 'ouvert' : i === n ? 'en cours' : 'verrouillé';
+    return `<tr><td>Niveau ${i}</td>
+      <td class="tiny">${d.total ? `${d.ok}/${d.total} maîtrisés` : '—'}</td>
+      <td><span class="${i <= n ? 'pill' : 'pill g'}">${etat}</span></td></tr>`;
+  }).join('');
+  $('lvlinfo').innerHTML = rows +
+    `<tr><td>Déblocage manuel</td><td colspan="2" class="tiny">${MANUAL_LEVEL > 1 ? 'niveau ' + MANUAL_LEVEL : 'aucun'}</td></tr>`;
+}
+$('lvlforce').addEventListener('click', async () => {
+  if (MANUAL_LEVEL >= 3) return $('lvlfb').innerHTML = '<div class="fb ok">Tout le contenu est déjà ouvert.</div>';
+  MANUAL_LEVEL = Math.min(3, Math.max(MANUAL_LEVEL, unlocked()) + 1);
+  ls.set(K.manual, MANUAL_LEVEL);
+  renderLevelBox(); renderHome(); renderLex();
+  $('lvlfb').innerHTML = `<div class="fb ok">Niveau ${MANUAL_LEVEL} ouvert.</div>`;
+  if (SESSION) await sb.from('profiles').update({ unlocked_level: MANUAL_LEVEL }).eq('id', SESSION.user.id);
+});
+
 function renderGoal(){
   document.querySelectorAll('#goaltabs [data-goal]').forEach(b =>
     b.classList.toggle('pri', +b.dataset.goal === DAILY_GOAL));
@@ -901,7 +1195,7 @@ async function boot(){
   const start = (location.hash || '#home').slice(1) || 'home';
   go($('v-' + start) ? start : 'home');
   loadLessons();
-  applyTheme(THEME); renderGoal();
+  applyTheme(THEME); renderGoal(); renderScriptPref();
   if (SESSION) { await loadPrefs(); await pull(); await push(); }
 }
 sb.auth.onAuthStateChange((_e, s) => {
@@ -1000,7 +1294,7 @@ function renderAccount(){
     <tr><td>Contenu</td><td class="f">${DATA.items.length} items · ${DATA.verbs.length} verbes</td></tr>
     <tr><td>Synchronisation</td><td class="f">${Object.keys(QUEUE).length ? Object.keys(QUEUE).length + ' en attente' : 'à jour'}</td></tr>`
     : '<tr><td colspan="2" class="tiny">Mode local — aucun compte. Le thème et l\'objectif restent sur cet appareil.</td></tr>';
-  applyTheme(THEME); renderGoal();
+  applyTheme(THEME); renderGoal(); renderScriptPref(); renderLevelBox();
   ['cshare','acpass','acsave'].forEach(id => { const e = $(id); if (e) e.disabled = !SESSION; });
 }
 
@@ -1008,7 +1302,7 @@ function renderAccount(){
 async function loadPrefs(){
   if (!SESSION) return;
   const { data } = await sb.from('profiles')
-    .select('theme, daily_goal, share_stats').eq('id', SESSION.user.id).single();
+    .select('theme, daily_goal, share_stats, script_pref, unlocked_level').eq('id', SESSION.user.id).single();
   if (!data) return;
   if (data.theme && data.theme !== THEME) {
     THEME = data.theme;
@@ -1017,6 +1311,12 @@ async function loadPrefs(){
   }
   if (data.daily_goal && data.daily_goal !== DAILY_GOAL) {
     DAILY_GOAL = data.daily_goal; ls.set(K.goal, DAILY_GOAL); renderGoal(); renderHome();
+  }
+  if (data.script_pref && data.script_pref !== SCRIPT) {
+    SCRIPT = data.script_pref; ls.set(K.script, SCRIPT); renderScriptPref();
+  }
+  if (data.unlocked_level && data.unlocked_level > MANUAL_LEVEL) {
+    MANUAL_LEVEL = data.unlocked_level; ls.set(K.manual, MANUAL_LEVEL);
   }
   const c = $('cshare'); if (c) c.checked = !!data.share_stats;
 }
