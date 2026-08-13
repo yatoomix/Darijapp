@@ -48,8 +48,17 @@ const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 const fmtd = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const today = () => fmtd(new Date());
 const pct = o => o.seen ? Math.round(o.ok / o.seen * 100) : 0;
-const norm = s => (s||'').toLowerCase().trim().replace(/[’'`]/g,'').replace(/\s+/g,' ')
-  .replace(/9/g,'q').replace(/7/g,'h').replace(/5/g,'kh').replace(/8/g,'gh');
+/* Normalisation de l'arabizi. Les équivalences systématiques sont traitées
+   ici plutôt qu'en variantes carte par carte : chiffres et digrammes,
+   ou/u, ch/sh, dj/j, et le q réalisé « g » en algérien. */
+const norm = s => (s||'').toLowerCase().trim()
+  .replace(/[’'`]/g,'')
+  .replace(/9/g,'q').replace(/7/g,'h').replace(/5/g,'kh').replace(/8/g,'gh')
+  .replace(/sh/g,'ch').replace(/dj/g,'j')
+  .replace(/ou/g,'u').replace(/o/g,'u').replace(/w(?=[aeiou])/g,'u')
+  .replace(/q/g,'g')
+  .replace(/(.)\1+/g,'$1')
+  .replace(/\s+/g,' ').trim();
 const fold = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
 const shuffle = a => { for (let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
 
@@ -257,6 +266,40 @@ function sameAnswer(saisi, attendu, script, variants){
   if (matchOne(saisi, attendu)) return true;
   return (variants || []).some(v => matchOne(saisi, v));
 }
+/* Quand une réponse est refusée mais que l'utilisateur sait qu'elle est
+   valable, il l'ajoute d'un geste : la carte apprend, et la réponse
+   compte comme juste. Sinon on désapprend en croyant se corriger. */
+async function addVariant(obj, table, texte){
+  const v = String(texte || '').trim();
+  if (!v || (obj.variants || []).includes(v)) return false;
+  obj.variants = [...(obj.variants || []), v].slice(0, 12);
+  saveData();
+  if (SESSION && !String(obj.id).startsWith('seed:') && !String(obj.id).startsWith('local:')) {
+    const { error } = await sb.from(table).update({ variants: obj.variants }).eq('id', obj.id);
+    if (error) return false;
+  }
+  return true;
+}
+
+/* Propose le bouton dans le retour d'erreur et laisse le temps de cliquer. */
+function offerVariant(obj, table, saisi, valider, delaiSiIgnore){
+  const txt = String(saisi || '').trim();
+  if (!txt) return valider(false);
+  $('sesfb').insertAdjacentHTML('beforeend',
+    `<div class="row" style="margin-top:10px">
+       <button class="act" id="varbtn" style="font-size:13px">✍️ C'est une autre orthographe correcte</button>
+     </div>`);
+  let fait = false;
+  const minuteur = setTimeout(() => { if (!fait) { fait = true; valider(false); } }, delaiSiIgnore);
+  $('varbtn').onclick = async () => {
+    if (fait) return; fait = true; clearTimeout(minuteur);
+    await addVariant(obj, table, txt);
+    burst('✓'); vibrate(14);
+    $('sesfb').innerHTML = `<div class="fb ok">✓ « ${esc(txt)} » ajoutée aux orthographes acceptées.</div>`;
+    setTimeout(() => valider(true), 900);
+  };
+}
+
 const parseVariants = t => String(t || '')
   .split(/[\n,;/]+/).map(v => v.trim()).filter(Boolean)
   .filter((v, i, a) => a.indexOf(v) === i).slice(0, 12);
@@ -652,7 +695,9 @@ function sesStep(){
       if (!ok) shake($('sin2'));
       $('sesfb').innerHTML = ok ? `<div class="fb ok">✓ <b>${esc(good)}</b></div>`
                                 : `<div class="fb no">✗ C'était <b>${esc(good)}</b></div>`;
-      sesAnswer(ok, 'verb', x.id, `${x.fr} · ${PERS[p]}`, good, ok ? 700 : 1900);
+      if (ok) return sesAnswer(true, 'verb', x.id, `${x.fr} · ${PERS[p]}`, good, 700);
+      offerVariant(x, 'verbs', $('sin2').value,
+        bon => sesAnswer(bon, 'verb', x.id, `${x.fr} · ${PERS[p]}`, good, bon ? 300 : 1200), 4200);
     };
     $('sgo').onclick = check;
     $('sin2').onkeydown = e => { if (e.key === 'Enter') check(); };
@@ -674,7 +719,9 @@ function sesStep(){
         ? `<div class="fb ok">✓ <b>${esc(x.arabizi)}</b></div>`
         : `<div class="fb no">✗ C'était <b>${esc(good)}</b><br><span class="tiny">${esc(x.arabizi)}${x.note ? ' — ' + esc(x.note) : ''}</span></div>`;
       speak(x.ar);
-      sesAnswer(ok, 'item', x.id, x.fr, good, ok ? 900 : 2400);
+      if (ok) return sesAnswer(true, 'item', x.id, x.fr, good, 900);
+      offerVariant(x, 'items', $('sin3').value,
+        bon => sesAnswer(bon, 'item', x.id, x.fr, good, bon ? 300 : 1200), 4200);
     };
     $('sgo3').onclick = check;
     $('sin3').onkeydown = e => { if (e.key === 'Enter') check(); };
@@ -722,7 +769,9 @@ function sesTyped(x){
         : `<div class="fb no">✗ C'était <b>${esc(attendu)}</b><br>
              <span class="tiny">${esc(x.arabizi)} — ${esc(x.ar)}</span></div>`;
       speak(x.ar);
-      sesAnswer(ok, 'item', x.id, x.fr, attendu, ok ? 900 : 2600);
+      if (ok) return sesAnswer(true, 'item', x.id, x.fr, attendu, 900);
+      offerVariant(x, 'items', input.value,
+        bon => sesAnswer(bon, 'item', x.id, x.fr, attendu, bon ? 300 : 1200), 4200);
     };
     $('tgo').onclick = verifier;
     $('tskip').onclick = () => { input.value = ''; verifier(); };
