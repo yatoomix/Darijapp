@@ -6,6 +6,7 @@ let POS = -1;
 
 function paint(id){ current = id; return true; }
 function go(id, remplace){
+  if (id === current && !remplace && booted) return;      // pas de doublon
   if (remplace || !booted) STACK[STACK.length-1] = id; else STACK.push(id);
   paint(id);
   const etat = { i: STACK.length-1, id };
@@ -17,8 +18,10 @@ function back(){
   POS--;
   const e = { state: HIST[POS] };
   const i = (e.state && typeof e.state.i === 'number') ? e.state.i : 0;
+  const id = (e.state && e.state.id) || STACK[i] || 'home';
   STACK = STACK.slice(0, i+1);
-  paint((e.state && e.state.id) || STACK[i] || 'home');
+  STACK[i] = id;                                          // pile auto-réparée
+  paint(id);
 }
 
 let pass=0, fail=0;
@@ -45,6 +48,21 @@ back(); t("retour 4", current, 'home');
 go('vocab'); go('card'); back(); go('card');
 t("ouvrir une 2e carte après retour", current, 'card');
 t("pile cohérente", STACK.join('>'), 'home>vocab>card');
+
+// --- les deux défauts signalés ---
+console.log('\n--- défauts de navigation signalés ---');
+go('home', true); go('vocab'); go('card'); back(); go('conj');
+t("après retour, une nouvelle page n'y renvoie pas", current, 'conj');
+
+go('home'); go('vocab'); go('vocab'); go('vocab');
+back();
+t("taper 3x la même tuile ne bloque pas le retour", current, 'home');
+
+go('vocab'); go('card'); go('home');       // « retour à l'accueil » depuis la fin de séance
+back();
+t("retour depuis l'accueil regagné", current, 'card');
+back();
+t("puis vocabulaire", current, 'vocab');
 
 /* ---- reprise de séance après consultation d'une fiche ---- */
 console.log('\n--- séance : consulter une fiche puis revenir ---');

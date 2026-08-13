@@ -581,6 +581,8 @@ function paint(id){
 
 function go(id, remplace){
   if (!$('v-' + id)) return;
+  // rester sur place ne doit pas empiler une entrée : le retour paraîtrait mort
+  if (id === current && !remplace && booted) return;
   if (remplace || !booted) STACK[STACK.length - 1] = id;
   else STACK.push(id);
   paint(id);
@@ -590,10 +592,15 @@ function go(id, remplace){
 }
 
 window.addEventListener('popstate', e => {
-  const i = (e.state && typeof e.state.i === 'number') ? e.state.i : 0;
+  const id = (e.state && e.state.id) || (location.hash || '#home').slice(1) || 'home';
+  const i  = (e.state && typeof e.state.i === 'number') ? e.state.i : 0;
+  if (!$('v-' + id)) { STACK = ['home']; return paint('home'); }
+  // la pile se resynchronise sur l'historique : si elle avait divergé
+  // (réinitialisation manuelle, entrée restaurée), on la répare au lieu
+  // de faire confiance à un index périmé.
   STACK = STACK.slice(0, i + 1);
-  const id = (e.state && e.state.id) || STACK[i] || 'home';
-  if (!paint(id)) { STACK = ['home']; paint('home'); }
+  STACK[i] = id;
+  paint(id);
 });
 
 function onEnter(id){
@@ -941,7 +948,7 @@ function sesEnd(){
 }
 $('sesquit').addEventListener('click', () => history.back());
 $('dagain').addEventListener('click', () => startSession(true));
-$('dhome').addEventListener('click', () => { STACK = ['home']; go('home', true); });
+$('dhome').addEventListener('click', () => go('home'));
 
 /* ============================================================
    VOCABULAIRE (entraînement libre)
@@ -1075,7 +1082,15 @@ function renderLex(){
   const rows = lfiltered();
   $('lcount').textContent = `${rows.length} carte${rows.length>1?'s':''} sur ${DATA.items.length}`;
   if (!rows.length) {
-    $('llist').innerHTML = '<p class="tiny" style="padding:20px;text-align:center">Aucun résultat.</p>';
+    const q = lq.value.trim();
+    $('llist').innerHTML = q
+      ? `<div style="padding:24px 18px;text-align:center">
+           <p class="tiny" style="margin-top:0">Aucune carte ne correspond à « ${esc(q)} ».</p>
+           <button class="act pri" id="lcreate">Créer cette carte</button>
+         </div>`
+      : '<p class="tiny" style="padding:22px;text-align:center">Aucun résultat avec ces filtres.</p>';
+    const b = $('lcreate');
+    if (b) b.onclick = () => { PREFILL = q; go('add'); };
     return;
   }
   // regroupées par palier : on voit d'un coup d'œil ce qui est ouvert
@@ -1266,6 +1281,11 @@ $('dvsave').addEventListener('click', async () => {
   burst('✓'); renderVerb(); renderVerbList();
 });
 
+/* Ces écouteurs avaient disparu en refondant la liste : la recherche
+   ne se déclenchait plus du tout. */
+lq.addEventListener('input', renderLex);
+[lcat, lstat, llvl].forEach(el => el.addEventListener('change', renderLex));
+
 $('lpendshow').addEventListener('click', () => { lstat.value='pending'; lq.value=''; lcat.value='*'; renderLex(); });
 $('ladd2').addEventListener('click', () => go('add'));
 $('lexport').addEventListener('click', () => {
@@ -1278,8 +1298,10 @@ $('lexport').addEventListener('click', () => {
 
 /* --- ajout de carte --- */
 const fcat = $('fcat');
+let PREFILL = '';
 function fillForm(){
   majAsk();
+  if (PREFILL) { $('ffr').value = PREFILL; PREFILL = ''; setTimeout(() => $('ffr').focus(), 80); }
   const cs = [...new Set(DATA.items.map(i => i.category))].sort();
   fcat.innerHTML = cs.map(c => `<option>${esc(c)}</option>`).join('') + '<option value="__new">+ Nouvelle catégorie…</option>';
 }
@@ -1808,7 +1830,6 @@ async function boot(){
   if (!SESSION && !LOCAL_ONLY) $('gate').classList.add('show');
   renderWho(); renderAll();
   const depart = (location.hash || '#home').slice(1) || 'home';
-  STACK = ['home'];
   go($('v-' + depart) ? depart : 'home', true);
   loadLessons();
   applyTheme(THEME); renderGoal(); renderScriptPref();
