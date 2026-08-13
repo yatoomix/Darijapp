@@ -245,23 +245,50 @@ const AR_KEYS = [
   'ء','أ','إ','آ','ة','ى','ؤ'
 ];
 
-function arabicKeypad(input){
-  const wrap = document.createElement('div');
-  wrap.className = 'keypad';
-  wrap.innerHTML = AR_KEYS.map(k => `<button type="button" class="key" data-k="${k}">${k}</button>`).join('')
-    + '<button type="button" class="key wide" data-k=" ">espace</button>'
-    + '<button type="button" class="key wide" data-del>⌫</button>';
+let KP = null, KP_INPUT = null;
 
-  wrap.addEventListener('click', e => {
+function buildKeypad(){
+  const el = document.createElement('div');
+  el.className = 'keypad';
+  el.innerHTML = AR_KEYS.map(k => `<button type="button" class="key" data-k="${k}">${k}</button>`).join('')
+    + '<button type="button" class="key wide" data-k=" ">espace</button>'
+    + '<button type="button" class="key wide" data-del>⌫</button>'
+    + '<button type="button" class="key close" data-close>✕</button>';
+  el.addEventListener('mousedown', e => e.preventDefault());  // ne pas voler le focus
+  el.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     e.preventDefault();
-    if (b.hasAttribute('data-del')) input.value = input.value.slice(0, -1);
-    else input.value += b.dataset.k;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
+    if (b.hasAttribute('data-close')) return closeKeypad();
+    if (!KP_INPUT) return;
+    if (b.hasAttribute('data-del')) KP_INPUT.value = KP_INPUT.value.slice(0, -1);
+    else KP_INPUT.value += b.dataset.k;
+    KP_INPUT.dispatchEvent(new Event('input', { bubbles: true }));
     vibrate(8);
   });
-  return wrap;
+  document.body.appendChild(el);
+  return el;
 }
+
+/* Le clavier est fixé en bas : on décale le bas de page d'autant,
+   sinon il masquerait le champ ou le bouton Valider. */
+function openKeypad(input){
+  if (!KP) KP = buildKeypad();
+  KP_INPUT = input;
+  KP.style.display = 'grid';
+  requestAnimationFrame(() => {
+    document.body.style.paddingBottom = KP.offsetHeight + 16 + 'px';
+    input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  });
+}
+function closeKeypad(){
+  if (KP) KP.style.display = 'none';
+  KP_INPUT = null;
+  document.body.style.paddingBottom = '';
+  document.querySelectorAll('[data-kp-open]').forEach(b => {
+    b.removeAttribute('data-kp-open'); b.textContent = '⌨️ Clavier arabe';
+  });
+}
+const keypadOpen = () => !!KP_INPUT;
 
 /* Rend le clavier disponible sur n'importe quel champ arabe de l'app —
    ajout de carte, correction — sans attendre d'atteindre une carte à saisie. */
@@ -275,16 +302,15 @@ function withKeypad(input){
   btn.style.cssText = 'padding:7px 12px;font-size:12.5px';
   btn.textContent = '⌨️ Clavier arabe';
   bar.appendChild(btn);
-  const box = document.createElement('div');
-  box.style.display = 'none';
-  input.after(bar); bar.after(box);
+  input.after(bar);
   btn.onclick = () => {
-    const ouvrir = box.style.display === 'none';
-    if (ouvrir && !box.firstChild) box.appendChild(arabicKeypad(input));
-    box.style.display = ouvrir ? '' : 'none';
-    btn.textContent = ouvrir ? '⌨️ Masquer le clavier' : '⌨️ Clavier arabe';
-    if (ouvrir) box.scrollIntoView({ block:'nearest', behavior:'smooth' });
+    if (btn.hasAttribute('data-kp-open')) return closeKeypad();
+    closeKeypad();
+    btn.setAttribute('data-kp-open', '1');
+    btn.textContent = '⌨️ Masquer le clavier';
+    openKeypad(input);
   };
+  input.addEventListener('focus', () => { if (!keypadOpen()) btn.click(); });
 }
 
 // champ de saisie adapté à l'écriture demandée
@@ -420,6 +446,7 @@ function go(id, back = false){
   $('hdr').classList.toggle('show', id !== 'home');
   $('htitle').textContent = window.TITLES[id] || '';
   current = id;
+  closeKeypad();
   window.scrollTo(0,0);
   // la première navigation remplace l'entrée courante : sinon le bouton retour
   // du téléphone quitterait l'app au lieu de revenir à l'accueil
@@ -522,6 +549,7 @@ function startSession(){
 }
 
 function sesStep(){
+  closeKeypad();
   if (SES.i >= SES.q.length) return sesEnd();
   const { type, x } = SES.q[SES.i];
   $('sescount').textContent = `Question ${SES.i+1} sur ${SES.q.length}`;
@@ -617,7 +645,7 @@ function sesTyped(x){
     zone.innerHTML = '';
     const input = answerField(script);
     zone.appendChild(input);
-    if (script === 'ar') zone.appendChild(arabicKeypad(input));
+    if (script === 'ar') openKeypad(input); else closeKeypad();
 
     const actions = document.createElement('div');
     actions.className = 'row';
