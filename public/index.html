@@ -4,12 +4,27 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <meta name="theme-color" content="#f7f4ef">
-<title>Derja — arabe algérien</title>
+<title>DerjApp — arabe algérien</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Derja">
+<meta name="apple-mobile-web-app-title" content="DerjApp">
+<script>
+/* applique le thème avant le premier rendu : sans ça, un éclair blanc
+   apparaît au lancement en mode nuit */
+(function(){
+  try{
+    var t = localStorage.getItem('derja.theme') || 'light';
+    if (t === 'auto') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    if (t === 'dark') {
+      document.documentElement.setAttribute('data-theme','dark');
+      var m = document.querySelector('meta[name=theme-color]');
+      if (m) m.setAttribute('content','#0d1524');
+    }
+  }catch(e){}
+})();
+</script>
 <style>
 :root{
   color-scheme: light;
@@ -17,8 +32,56 @@
   --line:#e8e2d9; --accent:#0f7b6c; --accent2:#16a390; --accent-soft:#e6f2f0;
   --warn:#b45309; --warn-soft:#fdf3e3; --bad:#b42318; --bad-soft:#fdeceb;
   --gold:#b7791f; --shadow:0 1px 2px rgba(28,26,23,.05), 0 6px 20px rgba(28,26,23,.06);
+  --field:#fff; --ok-ink:#0b5b50; --heat:15,123,108;
+  --hl-bg:#fff3cd; --hl-ink:#5c4708; --btn-ink:#fff; --hero-go-bg:#fff;
   --r:16px;
 }
+
+/* ---------- mode nuit : bleu nuit, écriture jaune ---------- */
+[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#0d1524; --card:#151f33; --ink:#f2d675; --muted:#9fb0cc;
+  --line:#26324c; --accent:#3ecfb2; --accent2:#2fae95; --accent-soft:#123029;
+  --warn:#f0b458; --warn-soft:#2e2413; --bad:#ff8f83; --bad-soft:#331d1c;
+  --gold:#f0c869; --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 22px rgba(0,0,0,.35);
+  --field:#101a2c; --ok-ink:#6fd8bd; --heat:62,207,178;
+  --hl-bg:rgba(242,214,117,.16); --hl-ink:#f7e4a0; --btn-ink:#0d1524; --hero-go-bg:#0d1524;
+}
+/* le jaune est réservé au texte de lecture ; les libellés secondaires
+   passent en bleu clair, sinon tout se ressemble et rien ne ressort */
+[data-theme="dark"] .tiny,[data-theme="dark"] .sub,[data-theme="dark"] th{color:var(--muted)}
+[data-theme="dark"] button.pri{background:var(--ink);color:#0d1524;border-color:var(--ink)}
+[data-theme="dark"] .hero{background:linear-gradient(145deg,#14584c 0%,#1b7a68 100%);
+  box-shadow:0 8px 28px rgba(0,0,0,.4)}
+[data-theme="dark"] .hero .t,[data-theme="dark"] .hero .go{color:#f2d675}
+[data-theme="dark"] .hero .go{background:#0d1524}
+[data-theme="dark"] .hero.done{background:linear-gradient(145deg,#1d3f30 0%,#2b5c45 100%)}
+[data-theme="dark"] .pill{background:var(--accent-soft);color:var(--accent)}
+[data-theme="dark"] .fb.ok{background:var(--accent-soft);color:var(--accent)}
+[data-theme="dark"] .bar,[data-theme="dark"] .mini{background:#1e2b44}
+[data-theme="dark"] code{background:#1e2b44;color:var(--ink)}
+[data-theme="dark"] #hdr{background:rgba(13,21,36,.9)}
+[data-theme="dark"] button.bad{border-color:var(--bad)}
+[data-theme="dark"] .note{background:var(--warn-soft);border-left-color:var(--warn);color:var(--ink)}
+[data-theme="dark"] .rank.me{background:var(--accent-soft)}
+[data-theme="dark"] #back:active{background:var(--line)}
+[data-theme="dark"] .hero .d{color:rgba(242,214,117,.72)}
+
+/* ---------- révision des leçons de grammaire ---------- */
+#lesson{touch-action:pan-y;user-select:none}
+#lesson .card{min-height:min(62vh,520px)}
+@media (prefers-reduced-motion:no-preference){
+  #lesson.swap .card{animation:lessonIn .28s cubic-bezier(.22,.7,.3,1)}
+  #lesson.swap.rev .card{animation:lessonBack .28s cubic-bezier(.22,.7,.3,1)}
+}
+@keyframes lessonIn{from{opacity:0;transform:translateX(34px)}to{opacity:1;transform:none}}
+@keyframes lessonBack{from{opacity:0;transform:translateX(-34px)}to{opacity:1;transform:none}}
+.dots{display:flex;gap:6px;justify-content:center;margin:14px 0 4px;flex-wrap:wrap}
+.dots i{width:7px;height:7px;border-radius:99px;background:var(--line);cursor:pointer;
+  transition:transform .2s, background .2s}
+.dots i.on{background:var(--accent);transform:scale(1.45)}
+.dots i.seen{background:var(--accent);opacity:.45}
+.lnav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{overscroll-behavior-y:none}
 body{margin:0;background:var(--bg);color:var(--ink);
@@ -73,7 +136,7 @@ h3{font-size:13px;margin:22px 0 8px;text-transform:uppercase;letter-spacing:.7px
   color:#fff;border:none;padding:20px;box-shadow:0 8px 28px rgba(15,123,108,.28)}
 .hero .t{font-size:20px;letter-spacing:-.4px}
 .hero .d{color:rgba(255,255,255,.82);font-size:13px}
-.hero .go{margin-top:16px;background:#fff;color:var(--accent);border-radius:11px;
+.hero .go{margin-top:16px;background:var(--hero-go-bg);color:var(--accent);border-radius:11px;
   padding:11px 18px;font-weight:650;font-size:14.5px;display:inline-block}
 .hero.done{background:linear-gradient(145deg,#3f6f56 0%,#5b8f6f 100%);box-shadow:0 8px 28px rgba(63,111,86,.25)}
 .flame{position:absolute;top:16px;right:18px;text-align:right}
@@ -96,25 +159,25 @@ button.act{border:1px solid var(--line);background:var(--card);padding:11px 16px
   cursor:pointer;font-size:14.5px;font-weight:550;color:var(--ink);transition:transform .12s}
 button.act:active{transform:scale(.96)}
 button.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
-button.good{background:var(--accent-soft);border-color:#b9ddd6;color:#0b5b50}
+button.good{background:var(--accent-soft);border-color:var(--accent);color:var(--ok-ink)}
 button.bad{background:var(--bad-soft);border-color:#f3c9c5;color:var(--bad)}
 input[type=text],input[type=email],select,textarea{border:1px solid var(--line);border-radius:12px;
-  padding:12px 13px;font-size:16px;width:100%;background:#fff;color:var(--ink);font-family:inherit}
+  padding:12px 13px;font-size:16px;width:100%;background:var(--field);color:var(--ink);font-family:inherit}
 input:focus,select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
 select{padding:10px 12px;font-size:14px}
 table{width:100%;border-collapse:collapse;font-size:14px;margin:6px 0}
 th,td{text-align:left;padding:8px 9px;border-bottom:1px solid var(--line)}
 th{font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600}
-.pill{display:inline-block;background:var(--accent-soft);color:#0b5b50;border-radius:999px;
+.pill{display:inline-block;background:var(--accent-soft);color:var(--ok-ink);border-radius:999px;
   padding:2px 9px;font-size:11.5px;font-weight:600}
 .pill.g{background:#f1eee9;color:var(--muted)}
 .pill.w{background:var(--warn-soft);color:var(--warn)}
 .fb{margin-top:10px;padding:11px 13px;border-radius:12px;font-size:14px}
-.fb.ok{background:var(--accent-soft);color:#0b5b50}
+.fb.ok{background:var(--accent-soft);color:var(--ok-ink)}
 .fb.no{background:var(--bad-soft);color:var(--bad)}
 .bar{height:5px;background:#eee8e0;border-radius:99px;overflow:hidden;margin:10px 0 2px}
 .bar>i{display:block;height:100%;background:var(--accent);width:0;transition:width .4s ease}
-.hl{background:#fff3cd;border-radius:5px;padding:0 5px;font-weight:700}
+.hl{background:var(--hl-bg);color:var(--hl-ink);border-radius:5px;padding:0 5px;font-weight:700}
 .note{background:var(--warn-soft);border-left:3px solid var(--warn);padding:11px 13px;
   border-radius:0 10px 10px 0;font-size:13.5px;margin:10px 0}
 ul{padding-left:20px;margin:8px 0} li{margin:4px 0}
@@ -180,7 +243,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 <div id="burst"></div>
 
 <div id="gate"><div class="box">
-  <h1 style="margin-bottom:4px">Derja</h1>
+  <h1 style="margin-bottom:4px">DerjApp</h1>
   <p class="sub" style="margin-bottom:18px">Arabe algérien — vocabulaire, conjugaison, phrases.</p>
   <div class="card">
     <h3 style="margin-top:0">Se connecter</h3>
@@ -229,7 +292,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 <div class="view" id="v-home">
 <div class="hometop">
   <div>
-    <h1>Derja</h1>
+    <h1>DerjApp</h1>
     <p class="sub">Arabe algérien</p>
   </div>
   <div>
@@ -284,7 +347,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 </div>
 
 <p class="tiny" style="text-align:center;margin-top:26px;opacity:.5">
-  Derja · version <span id="ver">1.2.0</span> · <span id="vmode">…</span>
+  DerjApp · version <span id="ver">1.3.0</span> · <span id="vmode">…</span>
 </p>
 </div>
 <div class="view" id="v-session">
@@ -490,15 +553,6 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
   <h3 style="margin-top:0">Tes points faibles</h3>
   <table id="cweak"></table>
 </div>
-<div class="card">
-  <h3 style="margin-top:0">Confidentialité</h3>
-  <label class="row" style="gap:10px;cursor:pointer;align-items:flex-start">
-    <input type="checkbox" id="cshare" style="width:auto;margin-top:3px">
-    <span>Apparaître dans le classement<br>
-    <span class="tiny">Décoché, tu continues à voir les autres mais personne ne voit tes chiffres.</span></span>
-  </label>
-  <div id="cshfb"></div>
-</div>
 </div>
 <div class="view" id="v-stats"><div class="card">
     <h3 style="margin-top:0">Vue d'ensemble</h3>
@@ -518,18 +572,25 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
     <h3 style="margin-top:0">Détail par catégorie</h3>
     <table id="pcat"></table>
   </div>
-  <div class="card">
-    <h3 style="margin-top:0">Synchronisation</h3>
-    <table id="psync"></table>
-    <div class="row" style="margin-top:10px">
-      <button class="act" id="psyncnow">Synchroniser maintenant</button>
-      <button class="act" id="pexp">Exporter une sauvegarde</button>
-    </div>
-    <textarea id="pdata" style="display:none;width:100%;height:140px;margin-top:12px;font-size:11px;
-      border:1px solid var(--line);border-radius:10px;padding:10px;font-family:ui-monospace,Menlo,monospace"></textarea>
-    <div id="pfb"></div>
-  </div></div>
-<div class="view" id="v-gram"><div class="card">
+  </div>
+<div class="view" id="v-gram">
+<div class="card" style="margin-bottom:14px">
+  <div class="row" style="justify-content:space-between">
+    <div><b>Réviser les leçons</b><div class="tiny">Une leçon à la fois. Balaie de droite à gauche pour avancer.</div></div>
+    <button class="act pri" id="gramstart">Commencer</button>
+  </div>
+</div>
+<div id="lesson" style="display:none">
+  <div class="tiny" id="lsncount" style="text-align:center;margin-bottom:8px"></div>
+  <div id="lbody"></div>
+  <div class="dots" id="ldots"></div>
+  <div class="lnav">
+    <button class="act" id="lprev">← Précédente</button>
+    <button class="act" id="lclose">Tout voir</button>
+    <button class="act pri" id="lnext">Suivante →</button>
+  </div>
+</div>
+<div id="gramlist"><div class="card">
     <h3 style="margin-top:0">1. Les pronoms</h3>
     <table>
       <tr><th>Français</th><th>Arabizi</th><th>Arabe</th></tr>
@@ -618,6 +679,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
     </table>
     <p class="tiny">Négatif : <b>ma</b> + présent 2ᵉ pers. + <b>ch</b> → <i>ma tchoufch</i> = ne regarde pas.</p>
   </div></div>
+</div>
 <div class="view" id="v-pron"><div class="card">
     <h3 style="margin-top:0">Les 6 sons qui n'existent pas en français</h3>
     <p class="tiny">C'est 90&nbsp;% de l'accent. Travaille-les 2 minutes par jour et le reste suivra.</p>
@@ -699,23 +761,67 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
   </div></div>
 <div class="view" id="v-account">
   <div class="card">
+    <h3 style="margin-top:0">Apparence</h3>
+    <div class="row" id="themetabs" style="gap:6px">
+      <button class="act" data-theme-set="light" style="flex:1">☀️ Clair</button>
+      <button class="act" data-theme-set="dark"  style="flex:1">🌙 Nuit</button>
+      <button class="act" data-theme-set="auto"  style="flex:1">Auto</button>
+    </div>
+    <p class="tiny" style="margin-bottom:0">Le mode nuit passe en bleu nuit avec une écriture jaune. « Auto » suit le réglage de ton téléphone. Le choix est enregistré sur ton compte et te suit d'un appareil à l'autre.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Objectif quotidien</h3>
+    <div class="row" id="goaltabs" style="gap:6px">
+      <button class="act" data-goal="10" style="flex:1">10</button>
+      <button class="act" data-goal="20" style="flex:1">20</button>
+      <button class="act" data-goal="30" style="flex:1">30</button>
+      <button class="act" data-goal="50" style="flex:1">50</button>
+    </div>
+    <p class="tiny" style="margin-bottom:0">Nombre de réponses pour valider ta journée et entretenir ta série. Mieux vaut un objectif tenu chaque jour qu'un objectif ambitieux abandonné.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Classement</h3>
+    <label class="row" style="gap:10px;cursor:pointer;align-items:flex-start">
+      <input type="checkbox" id="cshare" style="width:auto;margin-top:3px">
+      <span>Apparaître dans le classement<br>
+      <span class="tiny">Décoché, tu continues à voir les autres mais personne ne voit tes chiffres.</span></span>
+    </label>
+    <div id="cshfb"></div>
+  </div>
+
+  <div class="card">
     <h3 style="margin-top:0">Ton compte</h3>
     <table id="acinfo"></table>
   </div>
+
   <div class="card">
-    <h3 style="margin-top:0">Définir un mot de passe</h3>
-    <p class="tiny">Une fois défini, tu te connectes directement dans l'app, sans passer par ta boîte mail. C'est le plus confortable sur iPhone, et ça évite la limite d'envoi d'emails.</p>
+    <h3 style="margin-top:0">Mot de passe</h3>
+    <p class="tiny">Une fois défini, tu te connectes directement dans l'app sans passer par ta boîte mail. C'est le plus confortable sur iPhone, et ça évite la limite d'envoi d'emails.</p>
     <input type="password" id="acpass" placeholder="Au moins 8 caractères" autocomplete="new-password">
     <div class="row" style="margin-top:10px"><button class="act pri" id="acsave">Enregistrer</button></div>
     <div id="acfb"></div>
   </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Données</h3>
+    <div class="row">
+      <button class="act" id="psyncnow">Synchroniser maintenant</button>
+      <button class="act" id="pexp">Exporter une sauvegarde</button>
+    </div>
+    <textarea id="pdata" style="display:none;width:100%;height:140px;margin-top:12px;font-size:11px;
+      border:1px solid var(--line);border-radius:12px;padding:10px;font-family:ui-monospace,Menlo,monospace"></textarea>
+    <div id="pfb"></div>
+  </div>
+
   <div class="card">
     <button class="act" id="aclogout">Se déconnecter</button>
   </div>
 </div>
 </div>
 
-<script>window.TITLES ={"session":"Séance du jour","vocab":"Vocabulaire","conj":"Conjugaison","phr":"Phrases","lex":"Lexique","gram":"Grammaire","pron":"Prononciation","stats":"Progression","plan":"Plan de travail","compare":"Classement","add":"Ajouter une carte","account":"Ton compte"};</script>
+<script>window.TITLES ={"session":"Séance du jour","vocab":"Vocabulaire","conj":"Conjugaison","phr":"Phrases","lex":"Lexique","gram":"Grammaire","pron":"Prononciation","stats":"Progression","plan":"Plan de travail","compare":"Classement","add":"Ajouter une carte","account":"Paramètres"};</script>
 <script src="/seed-data.js"></script>
 <script type="module" src="/app.js"></script>
 </body>

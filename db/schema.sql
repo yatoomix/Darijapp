@@ -291,3 +291,13 @@ revoke execute on function public.leaderboard()          from public, anon;
 revoke execute on function public.category_group_stats() from public, anon;
 grant  execute on function public.leaderboard()          to authenticated;
 grant  execute on function public.category_group_stats() to authenticated;
+
+-- ============================================================
+--  PRÉFÉRENCES UTILISATEUR
+--  Stockées côté compte pour suivre d'un appareil à l'autre.
+-- ============================================================
+alter table public.profiles
+  add column if not exists theme text not null default 'light'
+    check (theme in ('light','dark','auto')),
+  add column if not exists daily_goal int not null default 20
+    check (daily_goal between 5 and 100);

@@ -1,5 +1,5 @@
 /* ============================================================
-   Derja — logique de l'app
+   DerjApp — logique de l'app
    Local-first : tout s'écrit d'abord en local, la synchro suit.
    ============================================================ */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
@@ -12,10 +12,10 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 });
 
 const SESSION_SIZE = { word: 10, verb: 5, sentence: 5 };
-const DAILY_GOAL = 20;
 
 /* ---------------- état ---------------- */
-const K = { data:'derja.data', prog:'derja.prog', queue:'derja.queue', days:'derja.days', mode:'derja.mode' };
+const K = { data:'derja.data', prog:'derja.prog', queue:'derja.queue', days:'derja.days',
+            mode:'derja.mode', theme:'derja.theme', goal:'derja.goal', seenLessons:'derja.lessons' };
 const ls = {
   get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
   set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
@@ -28,6 +28,9 @@ let PROG  = ls.get(K.prog,  {});
 let DAYS  = ls.get(K.days,  {});
 let QUEUE = ls.get(K.queue, {});
 let syncState = 'idle';
+let THEME = localStorage.getItem(K.theme) || 'light';   // stocké brut, lu aussi par le script d'amorçage
+let DAILY_GOAL = ls.get(K.goal, 20);
+let SEEN_LESSONS = ls.get(K.seenLessons, []);
 
 const saveData  = () => ls.set(K.data, DATA);
 const saveProg  = () => ls.set(K.prog, PROG);
@@ -56,6 +59,32 @@ function speak(t){
   } catch {}
 }
 function vibrate(ms){ try { navigator.vibrate?.(ms); } catch {} }
+
+/* ---------------- thème ---------------- */
+function resolveTheme(t){
+  return t === 'auto'
+    ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : t;
+}
+function applyTheme(t){
+  const real = resolveTheme(t);
+  document.documentElement.setAttribute('data-theme', real === 'dark' ? 'dark' : '');
+  if (real !== 'dark') document.documentElement.removeAttribute('data-theme');
+  const m = document.querySelector('meta[name=theme-color]');
+  if (m) m.setAttribute('content', real === 'dark' ? '#0d1524' : '#f7f4ef');
+  document.querySelectorAll('#themetabs [data-theme-set]').forEach(b =>
+    b.classList.toggle('pri', b.dataset.themeSet === t));
+}
+async function setTheme(t){
+  THEME = t;
+  try { localStorage.setItem(K.theme, t); } catch {}
+  applyTheme(t);
+  if (SESSION) await sb.from('profiles').update({ theme: t }).eq('id', SESSION.user.id);
+}
+// si le téléphone bascule pendant l'usage et qu'on est en « auto »
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => {
+  if (THEME === 'auto') applyTheme('auto');
+});
 
 /* --- animations --- */
 function burst(sym){
@@ -201,6 +230,7 @@ function onEnter(id){
   if (id === 'compare') renderCompare();
   if (id === 'add')     fillForm();
   if (id === 'account') renderAccount();
+  if (id !== 'gram' && $('lesson')) closeLessons();
   if (id === 'session') startSession();
 }
 $('back').addEventListener('click', () => history.back());
@@ -464,7 +494,7 @@ function renderLex(){
         <td class="ar" style="font-size:19px">${esc(x.ar)}</td>
         <td><span class="${st.cls}">${st.t}</span></td>
         <td class="tiny" style="white-space:nowrap">${e.seen
-          ? `<b style="color:#0b5b50">${e.ok}</b>/<b style="color:var(--bad)">${e.ko}</b>` : '—'}</td>
+          ? `<b style="color:var(--ok-ink)">${e.ok}</b>/<b style="color:var(--bad)">${e.ko}</b>` : '—'}</td>
         <td style="white-space:nowrap">${x.ar?`<button class="spk" data-say="${esc(x.ar)}">🔊</button>`:''}
           ${x.is_seed?'':`<button class="spk" data-del="${esc(x.id)}">🗑</button>`}</td></tr>`;
     }).join('');
@@ -655,7 +685,7 @@ function renderStats(){
   for (let i=0;i<30;i++){
     const key=fmtd(d), n=DAYS[key]||0;
     const op = n===0?.08 : n<10?.3 : n<30?.6 : 1;
-    cal += `<div title="${key} — ${n} réponses" style="width:20px;height:20px;border-radius:5px;background:rgba(15,123,108,${op})"></div>`;
+    cal += `<div title="${key} — ${n} réponses" style="width:20px;height:20px;border-radius:5px;background:rgba(var(--heat),${op})"></div>`;
     d.setDate(d.getDate()+1);
   }
   $('pcal').innerHTML = cal;
@@ -670,7 +700,7 @@ function renderStats(){
   $('pweak').innerHTML = '<tr><th>Type</th><th>Item</th><th>Réponse</th><th>✓ / ✗</th></tr>'
     + (weak.length?'':'<tr><td colspan="4" class="tiny" style="padding:18px;text-align:center">Rien à signaler.</td></tr>')
     + weak.map(x => `<tr><td class="tiny">${x.t}</td><td>${esc(x.l)}</td><td class="f">${esc(x.r)}</td>
-        <td class="tiny"><b style="color:#0b5b50">${x.e.ok}</b>/<b style="color:var(--bad)">${x.e.ko}</b></td></tr>`).join('');
+        <td class="tiny"><b style="color:var(--ok-ink)">${x.e.ok}</b>/<b style="color:var(--bad)">${x.e.ko}</b></td></tr>`).join('');
 
   const cs = [...new Set(DATA.items.map(i=>i.category))].sort();
   $('pcat').innerHTML = '<tr><th>Catégorie</th><th>Maîtrisés</th><th>Progression</th></tr>'
@@ -682,12 +712,6 @@ function renderStats(){
         <td><div class="bar" style="margin:0"><i style="width:${p}%"></i></div></td></tr>`;
     }).join('');
 
-  const q = Object.keys(QUEUE).length;
-  $('psync').innerHTML = `
-    <tr><td>Compte</td><td class="f">${SESSION?esc(SESSION.user.email):'aucun — mode local'}</td></tr>
-    <tr><td>Contenu</td><td class="f">${DATA.items.length} items · ${DATA.verbs.length} verbes</td></tr>
-    <tr><td>En attente d'envoi</td><td class="f">${q}</td></tr>
-    <tr><td>Cartes à traduire</td><td class="f">${pending().length}</td></tr>`;
 }
 $('psyncnow').addEventListener('click', async () => {
   if (!SESSION) return $('pfb').innerHTML = '<div class="fb no">Connecte-toi pour synchroniser.</div>';
@@ -713,10 +737,9 @@ async function renderCompare(){
     return;
   }
   $('lb').innerHTML = '<p class="tiny"><span class="spin"></span> Chargement…</p>';
-  const [lbRes, catRes, meRes] = await Promise.all([
+  const [lbRes, catRes] = await Promise.all([
     sb.rpc('leaderboard'),
-    sb.rpc('category_group_stats'),
-    sb.from('profiles').select('share_stats').eq('id', SESSION.user.id).single()
+    sb.rpc('category_group_stats')
   ]);
 
   if (lbRes.error) { $('lb').innerHTML = `<div class="fb no">${esc(lbRes.error.message)}</div>`; return; }
@@ -729,8 +752,6 @@ async function renderCompare(){
       <span class="sc"><b>${r.answers}</b> réponses<br><span class="tiny">${r.accuracy}% · ${r.mastered} maîtrisés</span></span>
     </div>`).join('')
     : '<p class="tiny">Personne n\'a encore révisé. Sois le premier.</p>';
-
-  if (meRes.data) $('cshare').checked = !!meRes.data.share_stats;
 
   if (catRes.error) return;
   const cats = catRes.data
@@ -747,7 +768,7 @@ async function renderCompare(){
   const line = c => `<tr><td>${esc(c.cat)}</td>
     <td class="f">${c.me}%</td>
     <td class="tiny">${c.grp === null ? 'seul dessus' : `groupe ${c.grp}%`}</td>
-    <td class="tiny" style="color:${c.diff>=0?'#0b5b50':'var(--bad)'}">${c.diff>0?'+':''}${c.diff} pts</td></tr>`;
+    <td class="tiny" style="color:${c.diff>=0?'var(--ok-ink)':'var(--bad)'}">${c.diff>0?'+':''}${c.diff} pts</td></tr>`;
 
   const head = '<tr><th>Catégorie</th><th>Toi</th><th>Groupe</th><th>Écart</th></tr>';
   const strong = cats.filter(c => c.diff > 0).slice(0,5);
@@ -767,6 +788,110 @@ $('cshare').addEventListener('change', async function(){
     : `<div class="fb ok">${this.checked ? 'Tu apparais dans le classement.' : 'Tu es masqué du classement.'}</div>`;
 });
 
+/* ============================================================
+   RÉVISION DES LEÇONS DE GRAMMAIRE
+   Les leçons sont les cartes déjà présentes dans la vue Grammaire :
+   on les lit une fois au démarrage, puis on les rejoue une par une.
+   ============================================================ */
+let LESSONS = [], li = 0;
+
+function loadLessons(){
+  LESSONS = [...document.querySelectorAll('#gramlist > .card')].map(c => c.outerHTML);
+}
+function lessonTitle(i){
+  const m = LESSONS[i].match(/<h3[^>]*>(.*?)<\/h3>/);
+  return m ? m[1].replace(/<[^>]+>/g,'') : `Leçon ${i+1}`;
+}
+function openLessons(i = 0){
+  if (!LESSONS.length) loadLessons();
+  if (!LESSONS.length) return;
+  li = Math.max(0, Math.min(i, LESSONS.length-1));
+  $('gramlist').style.display = 'none';
+  $('lesson').style.display = '';
+  $('gramstart').textContent = 'Reprendre';
+  renderLesson();
+}
+function closeLessons(){
+  $('lesson').style.display = 'none';
+  $('gramlist').style.display = '';
+}
+function renderLesson(reverse = false){
+  const box = $('lesson');
+  $('lbody').innerHTML = LESSONS[li];
+  $('lsncount').textContent = `Leçon ${li+1} sur ${LESSONS.length} · ${lessonTitle(li)}`;
+  $('lprev').disabled = li === 0;
+  $('lnext').textContent = li === LESSONS.length-1 ? 'Terminer' : 'Suivante →';
+
+  if (!SEEN_LESSONS.includes(li)) { SEEN_LESSONS.push(li); ls.set(K.seenLessons, SEEN_LESSONS); }
+
+  $('ldots').innerHTML = LESSONS.map((_, i) =>
+    `<i class="${i === li ? 'on' : SEEN_LESSONS.includes(i) ? 'seen' : ''}" data-l="${i}"></i>`).join('');
+  $('ldots').querySelectorAll('[data-l]').forEach(d =>
+    d.onclick = () => { const t = +d.dataset.l; const rev = t < li; li = t; renderLesson(rev); });
+
+  box.classList.remove('swap','rev'); void box.offsetWidth;
+  box.classList.add('swap'); if (reverse) box.classList.add('rev');
+  window.scrollTo(0,0);
+}
+function nextLesson(){
+  if (li === LESSONS.length-1) { burst('🎓'); closeLessons(); return; }
+  li++; renderLesson(false);
+}
+function prevLesson(){ if (li > 0) { li--; renderLesson(true); } }
+
+$('gramstart').addEventListener('click', () => {
+  // reprend à la première leçon non encore vue
+  let start = 0;
+  for (let i = 0; i < LESSONS.length || i === 0; i++) {
+    if (!LESSONS.length) break;
+    if (!SEEN_LESSONS.includes(i)) { start = i; break; }
+  }
+  openLessons(start);
+});
+$('lnext').addEventListener('click', nextLesson);
+$('lprev').addEventListener('click', prevLesson);
+$('lclose').addEventListener('click', closeLessons);
+
+/* balayage horizontal — on ignore les gestes majoritairement verticaux
+   pour ne pas bloquer le défilement de la page */
+(function(){
+  const el = $('lesson');
+  let x0 = 0, y0 = 0, t0 = 0, tracking = false;
+  el.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return;
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now(); tracking = true;
+  }, { passive: true });
+  el.addEventListener('touchend', e => {
+    if (!tracking) return; tracking = false;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - x0, dy = t.clientY - y0;
+    if (Date.now() - t0 > 700) return;
+    if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+    if (dx < 0) nextLesson(); else prevLesson();
+  }, { passive: true });
+})();
+// au clavier, pour le bureau
+document.addEventListener('keydown', e => {
+  if (current !== 'gram' || $('lesson').style.display === 'none') return;
+  if (e.key === 'ArrowRight') nextLesson();
+  if (e.key === 'ArrowLeft')  prevLesson();
+});
+
+/* ---------------- paramètres ---------------- */
+document.querySelectorAll('#themetabs [data-theme-set]').forEach(b =>
+  b.addEventListener('click', () => setTheme(b.dataset.themeSet)));
+
+function renderGoal(){
+  document.querySelectorAll('#goaltabs [data-goal]').forEach(b =>
+    b.classList.toggle('pri', +b.dataset.goal === DAILY_GOAL));
+}
+document.querySelectorAll('#goaltabs [data-goal]').forEach(b =>
+  b.addEventListener('click', async () => {
+    DAILY_GOAL = +b.dataset.goal;
+    ls.set(K.goal, DAILY_GOAL); renderGoal(); renderHome();
+    if (SESSION) await sb.from('profiles').update({ daily_goal: DAILY_GOAL }).eq('id', SESSION.user.id);
+  }));
+
 /* ---------------- authentification ---------------- */
 async function boot(){
   const { data } = await sb.auth.getSession();
@@ -775,7 +900,9 @@ async function boot(){
   renderWho(); renderAll();
   const start = (location.hash || '#home').slice(1) || 'home';
   go($('v-' + start) ? start : 'home');
-  if (SESSION) { await pull(); await push(); }
+  loadLessons();
+  applyTheme(THEME); renderGoal();
+  if (SESSION) { await loadPrefs(); await pull(); await push(); }
 }
 sb.auth.onAuthStateChange((_e, s) => {
   const was = !!SESSION;
@@ -783,7 +910,7 @@ sb.auth.onAuthStateChange((_e, s) => {
   if (SESSION) {
     LOCAL_ONLY = false; ls.set(K.mode, null);
     $('gate').classList.remove('show');
-    if (!was) { pull(); if (current === 'home') renderHome(); }
+    if (!was) { loadPrefs(); pull(); if (current === 'home') renderHome(); }
   }
   renderWho();
   if (current === 'account') renderAccount();
@@ -870,8 +997,28 @@ function renderAccount(){
   $('acinfo').innerHTML = SESSION ? `
     <tr><td>Email</td><td class="f">${esc(SESSION.user.email)}</td></tr>
     <tr><td>Série</td><td class="f">${st} jour${st>1?'s':''}</td></tr>
+    <tr><td>Contenu</td><td class="f">${DATA.items.length} items · ${DATA.verbs.length} verbes</td></tr>
     <tr><td>Synchronisation</td><td class="f">${Object.keys(QUEUE).length ? Object.keys(QUEUE).length + ' en attente' : 'à jour'}</td></tr>`
-    : '<tr><td class="tiny">Mode local — aucun compte.</td></tr>';
+    : '<tr><td colspan="2" class="tiny">Mode local — aucun compte. Le thème et l\'objectif restent sur cet appareil.</td></tr>';
+  applyTheme(THEME); renderGoal();
+  ['cshare','acpass','acsave'].forEach(id => { const e = $(id); if (e) e.disabled = !SESSION; });
+}
+
+/* préférences stockées côté compte : elles suivent l'utilisateur d'un appareil à l'autre */
+async function loadPrefs(){
+  if (!SESSION) return;
+  const { data } = await sb.from('profiles')
+    .select('theme, daily_goal, share_stats').eq('id', SESSION.user.id).single();
+  if (!data) return;
+  if (data.theme && data.theme !== THEME) {
+    THEME = data.theme;
+    try { localStorage.setItem(K.theme, THEME); } catch {}
+    applyTheme(THEME);
+  }
+  if (data.daily_goal && data.daily_goal !== DAILY_GOAL) {
+    DAILY_GOAL = data.daily_goal; ls.set(K.goal, DAILY_GOAL); renderGoal(); renderHome();
+  }
+  const c = $('cshare'); if (c) c.checked = !!data.share_stats;
 }
 $('acsave').addEventListener('click', async () => {
   const p = $('acpass').value, fb = $('acfb');
