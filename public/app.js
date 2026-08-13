@@ -1279,28 +1279,41 @@ $('lexport').addEventListener('click', () => {
 /* --- ajout de carte --- */
 const fcat = $('fcat');
 function fillForm(){
+  majAsk();
   const cs = [...new Set(DATA.items.map(i => i.category))].sort();
   fcat.innerHTML = cs.map(c => `<option>${esc(c)}</option>`).join('') + '<option value="__new">+ Nouvelle catégorie…</option>';
 }
-$('fkind').addEventListener('change', function(){
-  const verbe = this.value === 'verb';
+/* Un verbe part toujours en attente : ses 16 formes ne se saisissent pas
+   à la main. On coche donc d'office, on verrouille, et on l'explique. */
+function majAsk(){
+  const verbe = $('fkind').value === 'verb';
+  const box = $('faskwrap');
+  if (verbe) { $('fask').checked = true; $('fask').disabled = true; }
+  else { $('fask').disabled = false; }
+  box.classList.toggle('on', $('fask').checked);
+  box.classList.toggle('locked', verbe);
+  $('fasktxt').textContent = verbe
+    ? "Obligatoire pour un verbe : les 16 formes conjuguées seront complétées avant qu'il n'entre en révision."
+    : "Tape seulement le français. La carte est enregistrée en attente et n'entre pas en révision tant qu'elle n'est pas traduite.";
+  majChamps(verbe);
+}
+function majChamps(verbe){
+  const ask = $('fask').checked;
   $('fcatwrap').style.display = verbe ? 'none' : '';
-  $('faskwrap').style.display = verbe ? 'none' : '';
   $('fnotewrap').style.display = verbe ? 'none' : '';
   $('fverbnote').style.display = verbe ? '' : 'none';
   $('flabarz').textContent = verbe ? 'Base du verbe (optionnel)' : 'Arabizi';
-});
+  $('farz').disabled = ask && !verbe; $('far').disabled = ask && !verbe;
+  $('farz').style.opacity = $('far').style.opacity = (ask && !verbe) ? .4 : 1;
+  if (ask && !verbe) { $('farz').value = ''; $('far').value = ''; }
+}
+$('fkind').addEventListener('change', majAsk);
 fcat.addEventListener('change', function(){
   const n = $('fcatnew');
   n.style.display = this.value === '__new' ? 'block' : 'none';
   if (this.value === '__new') n.focus();
 });
-$('fask').addEventListener('change', function(){
-  const on = this.checked;
-  $('farz').disabled = on; $('far').disabled = on;
-  $('farz').style.opacity = $('far').style.opacity = on ? .4 : 1;
-  if (on) { $('farz').value=''; $('far').value=''; }
-});
+$('fask').addEventListener('change', majAsk);
 $('fadd').addEventListener('click', async () => {
   if ($('fkind').value === 'verb') return addVerbe();
   const ask = $('fask').checked;

@@ -86,6 +86,19 @@
 @media(min-width:560px){ .keypad{grid-template-columns:repeat(10,1fr)} }
 @media(max-width:360px){ .keypad .key{height:40px;font-size:19px} }
 
+/* ---------- interrupteur « cherche-moi la traduction » ----------
+   C'était une case perdue dans le formulaire ; c'est le choix le plus
+   structurant de l'écran, il doit se voir. */
+.askbox{display:flex;align-items:flex-start;gap:12px;width:100%;
+  border:1.5px solid var(--line);background:var(--card);border-radius:14px;
+  padding:14px;margin-top:14px;cursor:pointer;transition:border-color .15s, background .15s}
+.askbox.on{border-color:var(--accent);background:var(--accent-soft)}
+.askbox.locked{opacity:.9;cursor:default}
+.askbox input[type=checkbox]{width:22px;height:22px;flex:none;margin:1px 0 0;accent-color:var(--accent)}
+.askbox b{font-size:14.5px;letter-spacing:-.1px}
+.askbox .tiny{display:block;margin-top:3px}
+[data-theme="dark"] .askbox.on{background:#12262f}
+
 .lvlsel{border:1px solid var(--line);background:var(--field);color:var(--ink);
   border-radius:7px;padding:2px 4px;font-size:12px;width:auto}
 
@@ -432,7 +445,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 </div>
 
 <p class="tiny" style="text-align:center;margin-top:26px;opacity:.5">
-  DerjApp · version <span id="ver">1.15.0</span> · <span id="vmode">…</span>
+  DerjApp · version <span id="ver">1.15.1</span> · <span id="vmode">…</span>
 </p>
 </div>
 <div class="view" id="v-session">
@@ -638,10 +651,10 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
     <div><div class="tiny">Arabe (optionnel)</div>
       <input type="text" id="far" placeholder="جارتي" dir="rtl" style="margin-top:4px"></div>
   </div>
-  <label class="row" id="faskwrap" style="margin-top:14px;gap:10px;cursor:pointer;align-items:flex-start">
-    <input type="checkbox" id="fask" style="width:auto;margin-top:3px">
-    <span><b>Cherche-moi la traduction</b><br>
-    <span class="tiny">Tape seulement le français. La carte attend sa traduction et n'entre pas en révision.</span></span>
+  <label class="askbox" id="faskwrap">
+    <input type="checkbox" id="fask">
+    <span><b>Cherche-moi la traduction</b>
+    <span class="tiny" id="fasktxt">Tape seulement le français. La carte est enregistrée en attente et n'entre pas en révision tant qu'elle n'est pas traduite.</span></span>
   </label>
   <div id="fnotewrap">
   <div class="tiny" style="margin-top:10px">Note de prononciation (optionnel)</div>
