@@ -16,7 +16,8 @@ const SESSION_SIZE = { word: 10, verb: 5, sentence: 5 };
 /* ---------------- état ---------------- */
 const K = { data:'derja.data', prog:'derja.prog', queue:'derja.queue', days:'derja.days',
             mode:'derja.mode', theme:'derja.theme', goal:'derja.goal', seenLessons:'derja.lessons',
-            reached:'derja.reached', manual:'derja.manual', script:'derja.script' };
+            reached:'derja.reached', manual:'derja.manual', script:'derja.script',
+            ses:'derja.ses' };
 const ls = {
   get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
   set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
@@ -145,6 +146,17 @@ const verbs     = () => DATA.verbs.filter(v => v.status === 'ready' && v.forms);
 
 /* Entraînement : seul le niveau atteint est proposé. Le niveau ne cache
    rien dans l'app, il décide seulement de ce sur quoi on te teste. */
+/* Quand un exercice est vide, il faut dire POURQUOI : verrouillé par le
+   niveau, ou réellement sans contenu. Un « aucune phrase » sec laisse
+   croire à un bug. */
+function lockedMsg(total, dispo){
+  if (dispo) return null;
+  if (!total) return 'Aucun contenu pour l\'instant.';
+  const n = unlocked(), d = levelDone(n);
+  const cible = Math.ceil(d.total * UNLOCK);
+  return `🔒 Continue de t'entraîner pour débloquer ça — ${d.ok} / ${cible} cartes du niveau ${n} maîtrisées.`;
+}
+
 const trWords     = () => words().filter(i => lvl(i) <= unlocked());
 const trSentences = () => sentences().filter(i => lvl(i) <= unlocked());
 const trVerbs     = () => verbs().filter(v => lvl(v) <= unlocked());
@@ -537,11 +549,44 @@ function buildSession(){
     ...pickMany(trVerbs(),     'verb', SESSION_SIZE.verb,     cap(SESSION_SIZE.verb)).map(x => ({ type:'verb', x })),
     ...pickMany(trSentences(), 'item', SESSION_SIZE.sentence, cap(SESSION_SIZE.sentence)).map(x => ({ type:'sentence', x }))
   ];
+
+  /* Au niveau 1, verbes et phrases sont verrouillés : sans ce complément
+     la séance ne ferait que 10 questions au lieu des 20 annoncées. */
+  const vise = SESSION_SIZE.word + SESSION_SIZE.verb + SESSION_SIZE.sentence;
+  if (q.length < vise) {
+    const deja = new Set(q.map(e => e.x.id));
+    const rab = pickMany(trWords().filter(w => !deja.has(w.id)), 'item',
+                         vise - q.length, cap(vise - q.length));
+    q.push(...rab.map(x => ({ type:'word', x })));
+  }
   return shuffle(q);
 }
 
-function startSession(){
-  SES = { q: buildSession(), i: 0, ok: 0, miss: [], startStreak: streak() };
+function saveSes(){
+  if (!SES) return;
+  ls.set(K.ses, { day: today(), i: SES.i, ok: SES.ok, miss: SES.miss,
+                  startStreak: SES.startStreak,
+                  q: SES.q.map(e => ({ t: e.type, id: e.x.id })) });
+}
+/* On ne garde que des identifiants : si le contenu a changé entre-temps,
+   on repart proprement sur une séance neuve plutôt que sur une carte fantôme. */
+function loadSes(){
+  const r = ls.get(K.ses, null);
+  if (!r || r.day !== today() || r.i >= r.q.length) return null;
+  const q = r.q.map(e => {
+    const x = e.t === 'verb' ? DATA.verbs.find(v => v.id === e.id)
+                             : DATA.items.find(i => i.id === e.id);
+    return x ? { type: e.t, x } : null;
+  });
+  if (q.some(e => !e)) return null;
+  return { q, i: r.i, ok: r.ok, miss: r.miss || [], startStreak: r.startStreak || 0 };
+}
+
+function startSession(neuve){
+  const reprise = neuve ? null : loadSes();
+  SES = reprise || { q: buildSession(), i: 0, ok: 0, miss: [], startStreak: streak() };
+  if (!neuve && reprise) $('sesfb').innerHTML =
+    `<div class="fb ok">Séance reprise à la question ${reprise.i + 1}.</div>`;
   $('sesrun').style.display = ''; $('sesdone').style.display = 'none';
   if (!SES.q.length) { $('sesq').textContent = 'Aucun contenu disponible.'; return; }
   sesStep();
@@ -684,11 +729,12 @@ function sesAnswer(ok, type, id, label, answer, delay){
   rec(type, id, ok);
   if (ok) { SES.ok++; burst('✓'); vibrate(14); }
   else    { SES.miss.push({ label, answer }); vibrate([12,60,12]); }
-  SES.i++;
+  SES.i++; saveSes();
   setTimeout(sesStep, delay ?? (ok ? 550 : 1600));
 }
 
 function sesEnd(){
+  ls.set(K.ses, null);
   $('sesrun').style.display = 'none'; $('sesdone').style.display = '';
   $('sesbarfill').style.width = '100%';
   const p = Math.round(SES.ok / SES.q.length * 100);
@@ -711,7 +757,7 @@ function sesEnd(){
   push();
 }
 $('sesquit').addEventListener('click', () => history.back());
-$('dagain').addEventListener('click', startSession);
+$('dagain').addEventListener('click', () => startSession(true));
 $('dhome').addEventListener('click', () => go('home', true));
 
 /* ============================================================
@@ -730,7 +776,13 @@ function fillCats(el, allLabel){
 function vnext(){
   const list = trWords().filter(w => vcat.value === '*' || w.category === vcat.value);
   vcur = pick(list, 'item');
-  if (!vcur) { $('vfr').textContent = 'Aucune carte dans cette catégorie.'; return; }
+  if (!vcur) {
+    const tot = words().filter(w => vcat.value === '*' || w.category === vcat.value).length;
+    $('vcatlbl').textContent = '';
+    $('vfr').textContent = lockedMsg(tot, false) || 'Aucune carte dans cette catégorie.';
+    $('vback').style.display = 'none'; $('vbtns').innerHTML = '';
+    return;
+  }
   $('vcatlbl').textContent = vcur.category;
   $('vfr').textContent = vcur.fr;
   $('varz').textContent = vcur.arabizi;
@@ -1064,7 +1116,13 @@ let cq = null;
 
 function cnew(){
   const v = pick(trVerbs(), 'verb');
-  if (!v) { $('cq').textContent = 'Aucun verbe.'; return; }
+  if (!v) {
+    $('cprompt').textContent = '';
+    $('cq').textContent = lockedMsg(verbs().length, false) || 'Aucun verbe.';
+    $('cin').style.display = 'none'; $('cok').style.display = 'none'; $('cskip').style.display = 'none';
+    return;
+  }
+  $('cin').style.display = ''; $('cok').style.display = ''; $('cskip').style.display = '';
   const p = Math.floor(Math.random()*8), t = Math.random() < .5 ? 'present' : 'past';
   cq = { v, p, t };
   $('cprompt').textContent = (t==='present'?'Présent':'Passé') + ' · ' + v.pattern;
@@ -1110,7 +1168,14 @@ const sword = s => { const w = s.arabizi.split(' '); return w[Math.min(s.cloze_i
 function snext(){
   const list = trSentences().filter(s => scat.value === '*' || s.category === scat.value);
   scur = pick(list, 'item');
-  if (!scur) { $('sfr').textContent = 'Aucune phrase.'; return; }
+  if (!scur) {
+    const tot = sentences().filter(x => scat.value === '*' || x.category === scat.value).length;
+    $('sfr').textContent = lockedMsg(tot, false) || 'Aucune phrase.';
+    $('scloze').textContent = '';
+    $('sin').style.display = 'none'; $('sok').style.display = 'none'; $('sskip').style.display = 'none';
+    return;
+  }
+  $('sin').style.display = ''; $('sok').style.display = ''; $('sskip').style.display = '';
   const w = scur.arabizi.split(' '), idx = Math.min(scur.cloze_index ?? 0, w.length-1);
   $('sfr').textContent = scur.fr;
   $('scloze').innerHTML = w.map((x,i) => i===idx ? '<span class="hl">_____</span>' : esc(x)).join(' ');
