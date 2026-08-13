@@ -640,9 +640,10 @@ function renderHome(){
   $('bvocab').style.width = (w.length ? Math.round(mast/w.length*100) : 0) + '%';
   $('tconj').textContent = `${vb.length} verbes`;
   $('tphr').textContent  = `${sn.length} phrases`;
-  $('tlex').textContent  = `${DATA.items.length} cartes`;
+  const gx = grammar().length, lecons = LESSONS.length || 14;
+  $('tgram').innerHTML = `${gx} exercices · ${lecons} leçons`;
   const p = pending().length;
-  if (p) $('tlex').innerHTML = `${DATA.items.length} cartes · <span class="pill w">${p} à traduire</span>`;
+  if (p) $('tvocab').innerHTML = `${mast} / ${w.length} maîtrisés · <span class="pill w">${p} à traduire</span>`;
   const n = unlocked(), d = levelDone(Math.min(n, NIVEAUX));
   $('tlevel').innerHTML = n >= NIVEAUX && d.rate >= UNLOCK
     ? `Niveau ${NIVEAUX} · tout le contenu est ouvert`

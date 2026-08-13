@@ -38,5 +38,22 @@ for (const [id, ev] of reactifs) {
   ok ? pass++ : fail++;
 }
 
+/* Toute valeur affectée à un <select> depuis le code doit exister comme
+   option : sinon l'affectation échoue en silence et le filtre casse. */
+const optionsDe = id => {
+  const bloc = html.slice(html.indexOf(`<select id="${id}"`));
+  return [...bloc.slice(0, bloc.indexOf('</select>')).matchAll(/value="([^"]*)"|<option>([^<]*)</g)]
+    .map(m => (m[1] ?? m[2]).trim());
+};
+for (const m of js.matchAll(/\$?\(?'?(\w+)'?\)?\.value\s*=\s*'([^']+)'/g)) {
+  const [, id, val] = m;
+  if (!new RegExp(`<select id="${id}"`).test(html)) continue;
+  const opts = optionsDe(id);
+  if (!opts.length) continue;          // menu rempli dynamiquement par le code
+  const ok = opts.includes(val);
+  console.log(`${ok ? '✓' : '✗'} ${id}.value = '${val}' existe dans le menu`);
+  ok ? pass++ : fail++;
+}
+
 console.log(`\n${pass} réussis, ${fail} échoués`);
 process.exit(fail ? 1 : 0);

@@ -430,14 +430,18 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
     <div class="d" id="tphr">—</div>
   </button>
 
+  <button class="tile" data-go="gram">
+    <span class="ico">📐</span>
+    <div class="t">Grammaire</div>
+    <div class="d" id="tgram">—</div>
+  </button>
+
   <button class="tile wide" data-go="compare">
     <span class="ico">🏆</span>
     <div class="t">Classement</div>
     <div class="d" id="tcompare">Compare-toi aux autres, vois tes points forts et faibles.</div>
   </button>
 
-  <button class="tile small" data-go="vocab"><span class="ico">📖</span><div class="t">Lexique</div><div class="d" id="tlex">—</div></button>
-  <button class="tile small" data-go="gram"><span class="ico">📐</span><div class="t">Grammaire</div><div class="d">8 leçons</div></button>
   <button class="tile small" data-go="pron"><span class="ico">🗣</span><div class="t">Prononciation</div><div class="d">Les 6 sons</div></button>
   <button class="tile small" data-go="stats"><span class="ico">📊</span><div class="t">Progression</div><div class="d" id="tstats">—</div></button>
   <button class="tile small" data-go="plan"><span class="ico">🧭</span><div class="t">Plan</div><div class="d">Méthode</div></button>
@@ -445,7 +449,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 </div>
 
 <p class="tiny" style="text-align:center;margin-top:26px;opacity:.5">
-  DerjApp · version <span id="ver">1.16.0</span> · <span id="vmode">…</span>
+  DerjApp · version <span id="ver">1.17.0</span> · <span id="vmode">…</span>
 </p>
 </div>
 <div class="view" id="v-session">
@@ -529,6 +533,8 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
         <option value="new">Jamais vus</option>
         <option value="learn">En cours</option>
         <option value="ok">Maîtrisés</option>
+        <option value="due">À revoir maintenant</option>
+        <option value="pending">En attente de traduction</option>
         <option value="mine">Mes cartes</option>
       </select>
       <span class="tiny" id="lcount" style="margin-left:auto"></span>
