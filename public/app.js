@@ -242,9 +242,24 @@ const normAr = s => (s || '')
   .replace(/ئ/g, 'ي')                   // ئ → ي
   .replace(/[^ء-ي]/g, '');              // ponctuation, espaces, chiffres
 
-const sameAnswer = (saisi, attendu, script) =>
-  script === 'ar' ? normAr(saisi) === normAr(attendu) && normAr(attendu) !== ''
-                  : norm(saisi) === norm(attendu);
+/* Une réponse est juste si elle correspond à l'écriture attendue OU à
+   l'une des orthographes acceptées. Chaque candidate est testée dans les
+   deux normalisations : une variante peut être en arabizi ou en arabe. */
+function matchOne(saisi, candidate){
+  if (!candidate) return false;
+  const a = norm(saisi), b = norm(candidate);
+  if (a && a === b) return true;
+  const x = normAr(saisi), y = normAr(candidate);
+  return !!x && x === y;
+}
+function sameAnswer(saisi, attendu, script, variants){
+  if (!String(saisi || '').trim()) return false;
+  if (matchOne(saisi, attendu)) return true;
+  return (variants || []).some(v => matchOne(saisi, v));
+}
+const parseVariants = t => String(t || '')
+  .split(/[\n,;/]+/).map(v => v.trim()).filter(Boolean)
+  .filter((v, i, a) => a.indexOf(v) === i).slice(0, 12);
 
 /* Clavier arabe intégré : iOS ne permet pas de changer la langue du clavier
    depuis une page web, et la plupart des gens n'ont pas de clavier arabe
@@ -633,7 +648,7 @@ function sesStep(){
       <div class="row" style="justify-content:center;margin-top:12px">
         <button class="act pri" id="sgo">Vérifier</button><button class="act" id="sskip2">Je ne sais pas</button></div>`;
     const check = () => {
-      const ok = norm($('sin2').value) === norm(good);
+      const ok = sameAnswer($('sin2').value, good, 'arabizi', x.variants);
       if (!ok) shake($('sin2'));
       $('sesfb').innerHTML = ok ? `<div class="fb ok">✓ <b>${esc(good)}</b></div>`
                                 : `<div class="fb no">✗ C'était <b>${esc(good)}</b></div>`;
@@ -653,7 +668,7 @@ function sesStep(){
       <div class="row" style="justify-content:center;margin-top:12px">
         <button class="act pri" id="sgo3">Vérifier</button><button class="act" id="sskip3">Je ne sais pas</button></div>`;
     const check = () => {
-      const ok = norm($('sin3').value) === norm(good);
+      const ok = sameAnswer($('sin3').value, good, 'arabizi', x.variants);
       if (!ok) shake($('sin3'));
       $('sesfb').innerHTML = ok
         ? `<div class="fb ok">✓ <b>${esc(x.arabizi)}</b></div>`
@@ -700,7 +715,7 @@ function sesTyped(x){
 
     const attendu = script === 'ar' ? x.ar : x.arabizi;
     const verifier = () => {
-      const ok = sameAnswer(input.value, attendu, script);
+      const ok = sameAnswer(input.value, attendu, script, x.variants);
       if (!ok) shake(input);
       $('sesfb').innerHTML = ok
         ? `<div class="fb ok">✓ <b>${esc(attendu)}</b></div>`
@@ -921,6 +936,10 @@ function renderCard(){
     <tr><td>Type</td><td class="f">${x.kind === 'sentence' ? 'phrase' : 'mot'}</td></tr>
     <tr><td>Difficulté</td><td class="f">Niveau ${lvl(x)}${lvl(x) > unlocked() ? ' <span class="pill g">hors entraînement</span>' : ''}</td></tr>
     <tr><td>Prononciation</td><td class="f">${esc(x.note) || '—'}</td></tr>
+    <tr><td>Orthographes acceptées</td><td class="f">${
+      (x.variants || []).length
+        ? x.variants.map(v => `<span class="pill g" style="margin:0 4px 4px 0;display:inline-block">${esc(v)}</span>`).join('')
+        : '<span class="tiny">aucune — seule l\'écriture ci-dessus est acceptée</span>'}</td></tr>
     <tr><td>Traduction</td><td class="f">${x.verified ? '<span class="pill">vérifiée</span>' : '<span class="pill g">non vérifiée</span>'}</td></tr>
     <tr><td>Origine</td><td class="f">${x.is_seed ? 'contenu initial' : 'ajoutée par un membre'}</td></tr>`;
   $('dcdel').style.display = x.is_seed ? 'none' : '';
@@ -951,6 +970,7 @@ $('dcsave').addEventListener('click', async () => {
     arabizi: $('dcfarz').value.trim(),
     ar: $('dcfar').value.trim(),
     note: $('dcfnote').value.trim(),
+    variants: parseVariants($('dcfvar').value),
     verified: $('dcfver').checked,
     level: +(document.querySelector('#dcflvl [data-l].pri')?.dataset.l || lvl(x))
   };
@@ -999,6 +1019,10 @@ function renderVerb(){
     <tr><td>Réponses</td><td class="f">${e.seen ? `${e.ok} justes · ${e.ko} ratées · ${pct(e)} %` : 'jamais révisé'}</td></tr>
     <tr><td>Prochaine révision</td><td class="f">${e.seen ? humanDue(dueInDays(e)) : 'à la prochaine séance'}</td></tr>
     <tr><td>Difficulté</td><td class="f">Niveau ${lvl(v)}${lvl(v) > unlocked() ? ' <span class="pill g">hors entraînement</span>' : ''}</td></tr>
+    <tr><td>Orthographes acceptées</td><td class="f">${
+      (v.variants || []).length
+        ? v.variants.map(o => `<span class="pill g" style="margin:0 4px 4px 0;display:inline-block">${esc(o)}</span>`).join('')
+        : '<span class="tiny">aucune</span>'}</td></tr>
     <tr><td>Traduction</td><td class="f">${v.verified ? '<span class="pill">vérifiée</span>' : '<span class="pill g">non vérifiée</span>'}</td></tr>`;
   $('dvread').style.display = ''; $('dvform').style.display = 'none';
 }
@@ -1037,6 +1061,7 @@ $('dvsave').addEventListener('click', async () => {
     fr: $('dvffr').value.trim(), base: $('dvfbase').value.trim(),
     ar: $('dvfar').value.trim(), pattern: $('dvfpat').value.trim() || 'régulier',
     level: +(document.querySelector('#dvflvl [data-l].pri')?.dataset.l || lvl(v)),
+    variants: parseVariants($('dvfvar').value),
     forms
   };
   if (!patch.fr || !patch.base) return fb.innerHTML = '<div class="fb no">Français et base sont obligatoires.</div>';
@@ -1138,7 +1163,7 @@ function cscore(){
 function ccheck(){
   if (!cq) return;
   const good = cq.v.forms[cq.t][cq.p];
-  const ok = norm($('cin').value) === norm(good);
+  const ok = sameAnswer($('cin').value, good, 'arabizi', cq.v.variants);
   rec('verb', cq.v.id, ok); cscore();
   if (ok) { burst('✓'); vibrate(14); } else { shake($('cin')); vibrate([12,60,12]); }
   $('cfb').innerHTML = ok ? `<div class="fb ok">✓ <b>${esc(good)}</b></div>`
@@ -1194,7 +1219,7 @@ function sreveal(ok){
 }
 $('sok').addEventListener('click', () => {
   if (!scur) return;
-  const ok = norm($('sin').value) === norm(sword(scur));
+  const ok = sameAnswer($('sin').value, sword(scur), 'arabizi', scur.variants);
   rec('item', scur.id, ok);
   if (ok) { burst('✓'); vibrate(14); } else { shake($('sin')); vibrate([12,60,12]); }
   sreveal(ok);

@@ -430,7 +430,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 </div>
 
 <p class="tiny" style="text-align:center;margin-top:26px;opacity:.5">
-  DerjApp · version <span id="ver">1.7.1</span> · <span id="vmode">…</span>
+  DerjApp · version <span id="ver">1.8.0</span> · <span id="vmode">…</span>
 </p>
 </div>
 <div class="view" id="v-session">
@@ -966,6 +966,10 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
     <div class="dfield"><label>Arabizi</label><input type="text" id="dcfarz"></div>
     <div class="dfield"><label>Arabe</label><input type="text" id="dcfar" dir="rtl"></div>
     <div class="dfield"><label>Prononciation</label><input type="text" id="dcfnote"></div>
+    <div class="dfield"><label>Orthographes acceptées</label>
+      <input type="text" id="dcfvar" placeholder="khadam, khedem, 5edem">
+      <div class="tiny" style="margin-top:4px">Séparées par des virgules. Toutes seront acceptées en saisie, en plus de l'arabizi et de l'arabe ci-dessus.</div>
+    </div>
     <div class="dfield"><label>Difficulté</label>
       <div class="row" id="dcflvl" style="gap:6px">
         <button class="act" data-l="1" style="flex:1">Niveau 1</button>
@@ -1010,6 +1014,10 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
     <div class="dfield"><label>Base (arabizi)</label><input type="text" id="dvfbase"></div>
     <div class="dfield"><label>Arabe</label><input type="text" id="dvfar" dir="rtl"></div>
     <div class="dfield"><label>Type</label><input type="text" id="dvfpat"></div>
+    <div class="dfield"><label>Orthographes acceptées</label>
+      <input type="text" id="dvfvar" placeholder="khdem, 5dem">
+      <div class="tiny" style="margin-top:4px">Séparées par des virgules, acceptées quelle que soit la forme demandée.</div>
+    </div>
     <div class="dfield"><label>Difficulté</label>
       <div class="row" id="dvflvl" style="gap:6px">
         <button class="act" data-l="1" style="flex:1">Niveau 1</button>
