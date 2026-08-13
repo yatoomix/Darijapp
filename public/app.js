@@ -582,7 +582,12 @@ $('pexp').addEventListener('click', () => {
 });
 
 /* ---------------- rendu global ---------------- */
+function renderVer(){
+  const v = $('vmode');
+  if (v) v.textContent = SESSION ? 'connecté' : (LOCAL_ONLY ? 'mode local' : 'déconnecté');
+}
 function renderAll(){
+  renderVer();
   fillCats(vcat, 'Toutes les catégories');
   fillCats(lcat, 'Toutes les catégories');
   fillForm(); fillVerbs(); fillScats();
