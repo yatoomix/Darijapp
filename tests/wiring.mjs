@@ -55,5 +55,23 @@ for (const m of js.matchAll(/\$?\(?'?(\w+)'?\)?\.value\s*=\s*'([^']+)'/g)) {
   ok ? pass++ : fail++;
 }
 
+/* CRITIQUE — un $('x').addEventListener au premier niveau du module sur un
+   élément absent du DOM lève une TypeError, interrompt tout le script, et
+   aucune vue n'est affichée : écran noir au démarrage. */
+const niveau0 = js.split('\n')
+  .filter(l => /^\$\('[a-zA-Z0-9_-]+'\)\s*[?]?\.\s*addEventListener/.test(l))
+  .map(l => l.match(/\$\('([a-zA-Z0-9_-]+)'\)/)[1]);
+const idsDom = new Set([...html.matchAll(/id="([^"]+)"/g)].map(m => m[1]));
+const fantomes = [...new Set(niveau0)].filter(id => !idsDom.has(id));
+for (const id of fantomes) { console.log(`✗ ÉCRAN NOIR : $('${id}').addEventListener au chargement, mais #${id} n'existe pas`); fail++; }
+if (!fantomes.length) { console.log(`✓ les ${niveau0.length} écouteurs de premier niveau visent un élément existant`); pass++; }
+
+/* Les vues doivent toutes avoir un titre, sinon l'en-tête reste vide. */
+const vues = [...html.matchAll(/id="v-([a-z]+)"/g)].map(m => m[1]);
+const T = JSON.parse(html.match(/window\.TITLES\s*=\s*(\{.*?\});/)[1]);
+const sansTitre = vues.filter(v => v !== 'home' && !T[v]);
+console.log(`${sansTitre.length ? '✗' : '✓'} les ${vues.length} vues ont un titre${sansTitre.length ? ' — sauf ' + sansTitre : ''}`);
+sansTitre.length ? fail++ : pass++;
+
 console.log(`\n${pass} réussis, ${fail} échoués`);
 process.exit(fail ? 1 : 0);
