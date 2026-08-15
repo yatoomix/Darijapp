@@ -121,6 +121,9 @@ const RELOCK = 0.40;   // on ne referme qu'en dessous de 40 % : sans cet écart,
 const NIVEAUX = 5;     // paliers de progression
 const MASTERED = 3;    // bonnes réponses consécutives
 const TYPED_AT = 4;    // au-delà, la carte passe en saisie manuelle
+const BASE_UNTIL = 2;  // en deçà, on apprend le verbe avant de le conjuguer
+const TABLE_AT = 3;    // au-delà, un verbe peut tomber en tableau complet
+const TABLE_ODDS = .4; // fréquence du tableau complet une fois le verbe connu
 
 const lvl = x => (x.level || 1);
 
@@ -579,8 +582,10 @@ function paint(id){
   return true;
 }
 
+let lastNav = 0;
 function go(id, remplace){
   if (!$('v-' + id)) return;
+  lastNav = Date.now();
   // rester sur place ne doit pas empiler une entrée : le retour paraîtrait mort
   if (id === current && !remplace && booted) return;
   if (remplace || !booted) STACK[STACK.length - 1] = id;
@@ -592,6 +597,9 @@ function go(id, remplace){
 }
 
 window.addEventListener('popstate', e => {
+  // un geste de retour peut arriver après un appui volontaire : on ignore
+  // les événements qui suivent immédiatement une navigation choisie
+  if (Date.now() - lastNav < 350) return;
   const id = (e.state && e.state.id) || (location.hash || '#home').slice(1) || 'home';
   const i  = (e.state && typeof e.state.i === 'number') ? e.state.i : 0;
   if (!$('v-' + id)) { STACK = ['home']; return paint('home'); }
@@ -610,6 +618,7 @@ function onEnter(id){
   if (id === 'phr')     { fillScats(); snext(); }
   if (id === 'stats')   renderStats();
   if (id === 'compare') renderCompare();
+  if (id === 'pron')    renderVideos();
   if (id === 'add')     fillForm();
   if (id === 'account') renderAccount();
   if (id === 'gram')    { fillLessons(); gxnext(); }
@@ -780,6 +789,10 @@ function sesStep(){
   }
 
   if (type === 'verb') {
+    const e = get('verb', x.id);
+    // on apprend le verbe avant de le conjuguer
+    if (e.score < BASE_UNTIL) return sesBase(x);
+    if (e.score >= TABLE_AT && Math.random() < TABLE_ODDS) return sesTableau(x);
     const p = Math.floor(Math.random()*8), t = Math.random() < .5 ? 'present' : 'past';
     const good = x.forms[t][p];
     $('seslbl').textContent = (t === 'present' ? 'Présent' : 'Passé') + ' · ' + x.pattern;
@@ -790,8 +803,9 @@ function sesStep(){
     const check = () => {
       const ok = sameAnswer($('sin2').value, good, 'arabizi', verbVars(x, t, p));
       if (!ok) shake($('sin2'));
-      $('sesfb').innerHTML = ok ? `<div class="fb ok">✓ <b>${esc(good)}</b></div>`
-                                : `<div class="fb no">✗ C'était <b>${esc(good)}</b></div>`;
+      $('sesfb').innerHTML = (ok ? `<div class="fb ok">✓ <b>${esc(good)}</b></div>`
+                                 : `<div class="fb no">✗ C'était <b>${esc(good)}</b></div>`)
+                            + rappelVerbe(x, t, p);
       setEye('seseye', 'verb', x);
       if (ok) return sesAnswer(true, 'verb', x.id, `${x.fr} · ${PERS[p]}`, good, 500);
       offerVerbVariant(x, t, p, $('sin2').value,
@@ -857,6 +871,57 @@ function sesStep(){
   const sk = $('sskip2'); if (sk) sk.onclick = () => { $('sin2').value = ''; $('sgo').click(); };
 }
 
+/* La correction rappelle d'où vient la forme : sans ça, on mémorise
+   seize formes isolées au lieu d'un schéma réutilisable. */
+const REGLES = {
+  present: ['ne- + radical', 'te- + radical', 'te- + radical + -i', 'ye- + radical',
+            'te- + radical', 'ne- + radical + -ou', 'te- + radical + -ou', 'ye- + radical + -ou'],
+  past:    ['radical + -t', 'radical + -t', 'radical + -ti', 'radical seul',
+            'radical + -et', 'radical + -na', 'radical + -tou', 'radical + -ou']
+};
+function rappelVerbe(v, tense, i){
+  const regle = i == null ? null : REGLES[tense][i];
+  return `<div class="tiny" style="margin-top:8px;text-align:left;line-height:1.6">
+      <b>${esc(v.base)}</b> — ${esc(v.fr)} · ${esc(v.pattern)}
+      ${regle ? `<br>${tense === 'present' ? 'Présent' : 'Passé'}, ${PERS[i]} : <b>${regle}</b>` : ''}
+      ${v.pattern !== 'régulier' ? '<br><i>Verbe irrégulier : le radical lui-même change, le schéma ne suffit pas.</i>' : ''}
+    </div>`;
+}
+
+/* Tableau complet : les huit personnes d'un temps, d'un seul tenant.
+   C'est plus exigeant qu'une forme isolée, donc réservé aux verbes déjà
+   rencontrés — sinon on ne fait que recopier des erreurs. */
+function tableauHTML(v, tense){
+  return `<div class="tiny" style="text-align:center;margin-bottom:10px">
+      ${esc(v.fr)} · <b>${tense === 'present' ? 'présent' : 'passé'}</b>
+      <span class="pill g">${esc(v.pattern)}</span></div>
+    <div class="ctbl" id="ctlines">${PERS.map((p, i) => `
+      <div class="cline">
+        <span class="cper">${p}</span>
+        <input type="text" data-i="${i}" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <span class="cmark" data-m="${i}"></span>
+      </div>`).join('')}</div>`;
+}
+
+function corrigerTableau(box, v, tense){
+  const bonnes = v.forms[tense];
+  let justes = 0;
+  box.querySelectorAll('[data-i]').forEach(inp => {
+    const i = +inp.dataset.i;
+    const ok = sameAnswer(inp.value, bonnes[i], 'arabizi', verbVars(v, tense, i));
+    inp.classList.toggle('bon', ok);
+    inp.classList.toggle('faux', !ok);
+    inp.disabled = true;
+    box.querySelector(`[data-m="${i}"]`).textContent = ok ? '✓' : '✗';
+    if (ok) justes++;
+    else if (!inp.nextElementSibling.dataset.done) {
+      inp.parentElement.insertAdjacentHTML('afterend',
+        `<div class="csol">→ ${esc(bonnes[i])}</div>`);
+    }
+  });
+  return justes;
+}
+
 /* carte à saisie : on écrit la traduction au lieu de la reconnaître */
 function sesTyped(x){
   // si la carte n'existe que dans une écriture, on impose celle-là
@@ -914,6 +979,62 @@ function sesTyped(x){
     monter(SCRIPT);
   });
   monter(dispo);
+}
+
+/* Étape 1 d'un verbe : reconnaître sa base, comme une carte de vocabulaire.
+   Conjuguer un mot qu'on ne connaît pas revient à recopier des syllabes. */
+function sesBase(v){
+  $('seslbl').innerHTML = '<span class="pill">le verbe</span>';
+  $('sesq').textContent = v.fr;
+  $('sesbody').innerHTML = `<p class="tiny" style="margin-top:0">Quel est ce verbe en derja ?</p>
+    <input type="text" id="sinb" placeholder="La base du verbe…" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="row" style="justify-content:center;margin-top:12px">
+      <button class="act pri" id="sgob">Vérifier</button>
+      <button class="act" id="sskipb">Je ne sais pas</button></div>`;
+  const verifier = () => {
+    const ok = sameAnswer($('sinb').value, v.base, 'arabizi', []);
+    if (!ok) shake($('sinb'));
+    $('sesfb').innerHTML = (ok
+      ? `<div class="fb ok">✓ <b>${esc(v.base)}</b></div>`
+      : `<div class="fb no">✗ C'était <b>${esc(v.base)}</b></div>`) + rappelVerbe(v, null, null);
+    setSpeak(v.ar); setEye('seseye', 'verb', v);
+    if (ok) return sesAnswer(true, 'verb', v.id, v.fr, v.base, 700);
+    offerVariant(v, 'verbs', $('sinb').value,
+      bon => sesAnswer(bon, 'verb', v.id, v.fr, v.base, 180));
+  };
+  $('sgob').onclick = verifier;
+  $('sskipb').onclick = () => { $('sinb').value = ''; verifier(); };
+  $('sinb').onkeydown = e => { if (e.key === 'Enter') verifier(); };
+  setTimeout(() => $('sinb')?.focus(), 60);
+}
+
+function sesTableau(v){
+  const tense = Math.random() < .5 ? 'present' : 'past';
+  $('seslbl').innerHTML = '<span class="pill">tableau complet</span>';
+  $('sesq').textContent = v.fr;
+  $('sesbody').innerHTML = tableauHTML(v, tense)
+    + `<div class="row" style="justify-content:center;margin-top:14px">
+         <button class="act pri" id="ctgo">Vérifier</button></div>`;
+  const box = $('sesbody');
+  const premiers = box.querySelectorAll('[data-i]');
+  setTimeout(() => premiers[0]?.focus(), 60);
+  // Entrée passe au champ suivant plutôt que de valider trop tôt
+  premiers.forEach((inp, i) => inp.onkeydown = e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (i < premiers.length - 1) premiers[i + 1].focus(); else $('ctgo').click();
+  });
+  $('ctgo').onclick = () => {
+    const justes = corrigerTableau(box, v, tense);
+    const ok = justes === 8;
+    $('ctgo').disabled = true;
+    $('sesfb').innerHTML = (ok
+      ? '<div class="fb ok">✓ Les huit formes sont justes.</div>'
+      : `<div class="fb no">${justes} / 8 — le schéma n'est pas encore acquis.</div>`)
+      + rappelVerbe(v, tense, null);
+    setEye('seseye', 'verb', v);
+    suiteApresErreur('', () => {}, () => sesAnswer(ok, 'verb', v.id, `${v.fr} · tableau`, tense, 180));
+  };
 }
 
 function sesAnswer(ok, type, id, label, answer, delay){
@@ -1133,6 +1254,7 @@ function openCard(id){
 }
 function renderCard(){
   const x = CARD; if (!x) return;
+  $('dcvid')?.remove();
   const e = get('item', x.id), m = mastery(e);
   $('dcfr').textContent = x.fr;
   $('dcarz').textContent = x.arabizi || '—';
@@ -1153,6 +1275,11 @@ function renderCard(){
         : '<span class="tiny">aucune — seule l\'écriture ci-dessus est acceptée</span>'}</td></tr>
     <tr><td>Traduction</td><td class="f">${x.verified ? '<span class="pill">vérifiée</span>' : '<span class="pill g">non vérifiée</span>'}</td></tr>
     <tr><td>Origine</td><td class="f">${x.is_seed ? 'contenu initial' : 'ajoutée par un membre'}</td></tr>`;
+  const vid = idYoutube(x.video);
+  $('dcstats').insertAdjacentHTML('afterend', vid
+    ? `<div class="vid" id="dcvid"><iframe src="https://www.youtube-nocookie.com/embed/${esc(vid)}"
+         title="${esc(x.fr)}" loading="lazy" allowfullscreen
+         referrerpolicy="strict-origin-when-cross-origin"></iframe></div>` : '');
   $('dcdel').style.display = x.is_seed ? 'none' : '';
   $('dcread').style.display = ''; $('dcform').style.display = 'none';
 }
@@ -1181,6 +1308,7 @@ $('dcsave').addEventListener('click', async () => {
     ar: $('dcfar').value.trim(),
     note: $('dcfnote').value.trim(),
     variants: parseVariants($('dcfvar').value),
+    video: $('dcfvid').value.trim(),
     verified: $('dcfver').checked,
     level: niveauChoisi('dcflvl', lvl(x))
   };
@@ -1399,7 +1527,9 @@ let cq = null;
 
 
 function cnew(){
-  const v = pick(TRAIN.verbs(), 'verb');
+  // on ne propose à conjuguer que les verbes dont la base est acquise
+  const connus = TRAIN.verbs().filter(v => get('verb', v.id).score >= BASE_UNTIL);
+  const v = pick(connus.length ? connus : TRAIN.verbs(), 'verb');
   if (!v) {
     $('cprompt').textContent = '';
     $('cq').textContent = lockedMsg(TOTAL.verbs(), false) || 'Aucun verbe.';
@@ -1425,8 +1555,9 @@ function ccheck(){
   const ok = sameAnswer($('cin').value, good, 'arabizi', verbVars(cq.v, cq.t, cq.p));
   rec('verb', cq.v.id, ok); cscore();
   if (ok) { burst('✓'); vibrate(14); } else { shake($('cin')); vibrate([12,60,12]); }
-  $('cfb').innerHTML = ok ? `<div class="fb ok">✓ <b>${esc(good)}</b></div>`
-                          : `<div class="fb no">✗ La bonne forme est <b>${esc(good)}</b>.</div>`;
+  $('cfb').innerHTML = (ok ? `<div class="fb ok">✓ <b>${esc(good)}</b></div>`
+                           : `<div class="fb no">✗ La bonne forme est <b>${esc(good)}</b>.</div>`)
+                       + rappelVerbe(cq.v, cq.t, cq.p);
   setTimeout(cnew, ok ? 900 : 2600);
 }
 $('cok').addEventListener('click', ccheck);
@@ -1704,6 +1835,77 @@ document.addEventListener('keydown', e => {
   if (current !== 'gram' || $('lesson').style.display === 'none') return;
   if (e.key === 'ArrowRight') nextLesson();
   if (e.key === 'ArrowLeft')  prevLesson();
+});
+
+/* ---------------- vidéos de prononciation ----------------
+   Aucun identifiant n'est fourni par défaut : je ne peux pas garantir
+   qu'une vidéo existe ni qu'elle prononce le bon mot. Les liens sont
+   ajoutés par des humains qui les ont vus. */
+function idYoutube(url){
+  const m = String(url || '').match(
+    /(?:youtu\.be\/|v=|embed\/|shorts\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : (/^[A-Za-z0-9_-]{11}$/.test(String(url||'').trim()) ? url.trim() : null);
+}
+const avecVideo = () => DATA.items.filter(i => idYoutube(i.video));
+
+function renderVideos(){
+  const list = avecVideo();
+  $('vidcount').textContent = list.length;
+  if (!list.length) {
+    $('vidsel').style.display = 'none';
+    $('vidbox').innerHTML = '<p class="tiny">Aucune vidéo pour l\'instant.</p>';
+    return;
+  }
+  $('vidsel').style.display = '';
+  const keep = $('vidsel').value;
+  $('vidsel').innerHTML = list.map(x =>
+    `<option value="${esc(x.id)}">${esc(x.fr)} — ${esc(x.arabizi)}</option>`).join('');
+  if (keep && list.some(x => x.id === keep)) $('vidsel').value = keep;
+  montrerVideo();
+}
+function montrerVideo(){
+  const x = DATA.items.find(i => i.id === $('vidsel').value);
+  const vid = x && idYoutube(x.video);
+  $('vidbox').innerHTML = vid
+    ? `<div class="vid"><iframe src="https://www.youtube-nocookie.com/embed/${esc(vid)}"
+         title="${esc(x.fr)}" loading="lazy" allowfullscreen
+         referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+       <div class="tiny" style="margin-top:8px"><b>${esc(x.arabizi)}</b> · ${esc(x.ar)}</div>`
+    : '';
+}
+$('vidsel').addEventListener('change', montrerVideo);
+
+/* ---------------- tableau complet, à la demande ---------------- */
+$('ctstart').addEventListener('click', () => {
+  const v = pick(TRAIN.verbs(), 'verb');
+  const box = $('ctbox');
+  if (!v) { box.style.display = ''; box.innerHTML =
+    `<p class="tiny">${esc(lockedMsg(TOTAL.verbs(), false) || 'Aucun verbe.')}</p>`; return; }
+  const tense = Math.random() < .5 ? 'present' : 'past';
+  box.style.display = '';
+  box.innerHTML = tableauHTML(v, tense)
+    + `<div class="row" style="margin-top:14px">
+         <button class="act pri" id="ctgo2">Vérifier</button>
+         <button class="act" id="ctnew">Autre verbe</button></div>
+       <div id="ctfb2"></div>`;
+  const champs = box.querySelectorAll('[data-i]');
+  champs.forEach((inp, i) => inp.onkeydown = e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (i < champs.length - 1) champs[i + 1].focus(); else $('ctgo2').click();
+  });
+  $('ctgo2').onclick = () => {
+    const justes = corrigerTableau(box, v, tense);
+    rec('verb', v.id, justes === 8);
+    $('ctgo2').disabled = true;
+    $('ctfb2').innerHTML = (justes === 8
+      ? '<div class="fb ok">✓ Les huit formes sont justes.</div>'
+      : `<div class="fb no">${justes} / 8 — les formes justes sont en vert.</div>`)
+      + rappelVerbe(v, tense, null);
+    cscore();
+  };
+  $('ctnew').onclick = () => $('ctstart').click();
+  champs[0]?.focus();
 });
 
 /* ---------------- exercices de grammaire ---------------- */

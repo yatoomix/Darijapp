@@ -1,6 +1,6 @@
 /* Lance toutes les suites. À faire tourner avant chaque push. */
 import { execFileSync } from 'child_process';
-const suites = ['train-scope.mjs','wiring.mjs','router.mjs','answer-matching.mjs','levels-and-typing.mjs'];
+const suites = ['train-scope.mjs','wiring.mjs','router.mjs','answer-matching.mjs','levels-and-typing.mjs','conj-table.mjs'];
 let ko = 0;
 for (const s of suites) {
   process.stdout.write(`\n=== ${s} ===\n`);

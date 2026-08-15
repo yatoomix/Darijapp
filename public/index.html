@@ -133,6 +133,21 @@
 .lnote{font-size:11.5px;color:var(--muted);opacity:.75;margin-top:1px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lchev{color:var(--muted);font-size:19px;flex:none;opacity:.5}
+/* ---------- tableau de conjugaison à compléter ---------- */
+.ctbl{display:flex;flex-direction:column;gap:7px;margin-top:6px;text-align:left}
+.ctbl .cline{display:flex;align-items:center;gap:9px}
+.ctbl .cper{width:96px;flex:none;font-size:12px;color:var(--muted)}
+.ctbl input{flex:1;min-width:0;padding:9px 11px;font-size:15px}
+.ctbl .cmark{width:18px;flex:none;text-align:center;font-size:14px}
+.ctbl input.bon{border-color:var(--accent);background:var(--accent-soft)}
+.ctbl input.faux{border-color:var(--bad);background:var(--bad-soft)}
+.ctbl .csol{font-size:12px;color:var(--bad);margin-top:2px}
+
+/* ---------- lecteur vidéo intégré ---------- */
+.vid{position:relative;width:100%;padding-top:56.25%;border-radius:12px;
+  overflow:hidden;background:#000;margin-top:10px}
+.vid iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+
 .lsep{padding:11px 16px;background:var(--bg);border-bottom:1px solid var(--line);
   font-size:11.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);
   position:sticky;top:0;z-index:5}
@@ -225,7 +240,15 @@ h3{font-size:13px;margin:22px 0 8px;text-transform:uppercase;letter-spacing:.7px
 .tile .t{font-weight:650;font-size:15.5px;letter-spacing:-.2px}
 .tile .d{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.4}
 .tile.wide{grid-column:span 2}
-.tile.tall{grid-row:span 2;display:flex;flex-direction:column;justify-content:space-between}
+/* Hauteurs réservées : renderHome() s'exécute une seconde fois après la
+   synchronisation. Sans minimum, les tuiles changeaient de taille et la
+   grille se réagençait sous le doigt — le clic partait sur la voisine. */
+.tile{min-height:104px}
+.tile.small{min-height:88px}
+.tile.wide{min-height:92px}
+.hero{min-height:190px}
+.tile .d{min-height:32px}
+.small .d{min-height:16px}
 
 /* la séance du jour */
 .hero{grid-column:span 2;background:linear-gradient(145deg,var(--accent) 0%,var(--accent2) 100%);
@@ -449,7 +472,7 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
 </div>
 
 <p class="tiny" style="text-align:center;margin-top:26px;opacity:.5">
-  DerjApp · version <span id="ver">1.17.0</span> · <span id="vmode">…</span>
+  DerjApp · version <span id="ver">1.20.0</span> · <span id="vmode">…</span>
 </p>
 </div>
 <div class="view" id="v-session">
@@ -888,7 +911,14 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
     </ul>
   </div>
 </div>
-<div class="view" id="v-pron"><div class="card">
+<div class="view" id="v-pron">
+<div class="card drill">
+  <div class="dh"><b>🎧 Écouter un locuteur</b><span class="pill" id="vidcount">0</span></div>
+  <p class="tiny" style="margin-top:0">Les cartes auxquelles une vidéo a été rattachée. Pour en ajouter une, ouvre une carte depuis le Vocabulaire, touche Modifier, et colle un lien YouTube.</p>
+  <select id="vidsel"></select>
+  <div id="vidbox"></div>
+</div>
+<div class="card">
     <h3 style="margin-top:0">Les 6 sons qui n'existent pas en français</h3>
     <p class="tiny">C'est 90&nbsp;% de l'accent. Travaille-les 2 minutes par jour et le reste suivra.</p>
     <table>
@@ -1085,6 +1115,10 @@ code{background:#f1eee9;padding:1px 5px;border-radius:5px;font-size:13px}
     <div class="dfield"><label>Arabizi</label><input type="text" id="dcfarz"></div>
     <div class="dfield"><label>Arabe</label><input type="text" id="dcfar" dir="rtl"></div>
     <div class="dfield"><label>Prononciation</label><input type="text" id="dcfnote"></div>
+    <div class="dfield"><label>Vidéo de prononciation (optionnel)</label>
+      <input type="text" id="dcfvid" placeholder="https://youtube.com/watch?v=…">
+      <div class="tiny" style="margin-top:4px">Colle un lien YouTube où le mot est prononcé. Il s'affichera sur la fiche et dans la page Prononciation.</div>
+    </div>
     <div class="dfield"><label>Orthographes acceptées</label>
       <input type="text" id="dcfvar" placeholder="khadam, khedem, 5edem">
       <div class="tiny" style="margin-top:4px">Séparées par des virgules. Toutes seront acceptées en saisie, en plus de l'arabizi et de l'arabe ci-dessus.</div>
